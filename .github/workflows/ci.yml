@@ -1,0 +1,52 @@
+name: ci
+
+# reckon-e2e CI. Runs the torture suites on push to main and on PRs.
+#
+# Codeberg → GitHub mirrors every 8h; GitHub Actions is where these
+# runners actually live. See workspace CLAUDE.md for the hosting
+# rationale.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  torture:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        otp: ['26.2', '27.0']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Erlang
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ matrix.otp }}
+          rebar3-version: '3.22.1'
+
+      - name: Cache rebar3 deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            _build/default/lib
+            ~/.cache/rebar3
+          key: rebar3-${{ matrix.otp }}-${{ hashFiles('rebar.config', 'rebar.lock') }}
+
+      - name: Compile
+        run: rebar3 compile
+
+      - name: Run torture suites
+        run: rebar3 ct
+
+      - name: Upload CT logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ct-logs-otp-${{ matrix.otp }}
+          path: _build/test/logs
+          retention-days: 7

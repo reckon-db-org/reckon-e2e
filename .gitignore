@@ -1,0 +1,15 @@
+_build/
+.rebar3/
+*.beam
+*.dump
+*.crashdump
+rebar3.crashdump
+.eunit/
+ebin/
+priv/
+deps/
+.DS_Store
+*.swp
+*~
+doc/
+logs/

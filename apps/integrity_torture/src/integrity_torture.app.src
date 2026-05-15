@@ -1,0 +1,21 @@
+{application, integrity_torture, [
+    {description,
+     "Integrity-layer torture suite. Concurrent writers + strict readers + "
+     "adversarial tampering against a mem-evoq store."},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib,
+        crypto,
+        mem_evoq,
+        evoq,
+        reckon_gater
+    ]},
+    {env, []},
+    {modules, []},
+    {licenses, ["Apache-2.0"]},
+    {links, [
+        {"Codeberg", "https://codeberg.org/reckon-db-org/reckon-e2e"}
+    ]}
+]}.
