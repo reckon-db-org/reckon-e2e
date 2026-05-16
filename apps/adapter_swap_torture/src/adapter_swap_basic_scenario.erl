@@ -19,7 +19,14 @@
 
 -spec run(driver()) -> map().
 run(#{store_id := StoreId, facade := Facade}) ->
-    StreamId = <<"swap-agg$1">>,
+    %% Stream-id unique per run — cross-VM uniqueness needed because
+    %% the clustered store is long-running while each `rebar3 ct'
+    %% invocation gets a fresh BEAM. `unique_integer/1' resets per
+    %% VM, so we use a crypto-random nonce instead.
+    StreamId = iolist_to_binary([
+        <<"swap-agg$">>,
+        binary:encode_hex(crypto:strong_rand_bytes(8))
+    ]),
 
     {ok, AppendedVersion} = Facade:append(StoreId, StreamId, -1,
         [#{event_type => <<"swap_e_v1">>, data => #{n => 1}},

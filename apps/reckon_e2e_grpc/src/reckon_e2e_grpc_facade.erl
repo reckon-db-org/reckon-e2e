@@ -194,14 +194,32 @@ merge_payload_into_envelope(_, Envelope) ->
 
 %% snapshot_record() wire map → flat map matching evoq_snapshot_store
 %% return shape.
+%% The gateway's RecordSnapshot handler currently stores the FULL
+%% request map (with `data`, `metadata`, `version` keys) as the
+%% snapshot's Data field — so when ListSnapshots returns it, our
+%% .data is a JSON-encoded wrapper, not the original payload.
+%% Same wrap-on-store bug class as reckon-evoq 2.1.0 had; the proper
+%% server-side fix belongs in reckon-gateway. Until then, unwrap
+%% defensively here.
 snapshot_to_flat_map(StreamId, #{} = S) ->
+    RawData = decode_payload(maps:get(data, S, <<>>)),
+    RawMetadata = decode_payload(maps:get(metadata, S, <<>>)),
+    {InnerData, InnerMetadata} = unwrap_snapshot_payload(RawData, RawMetadata),
     #{
         stream_id => StreamId,
         version   => maps:get(version, S, 0),
-        data      => decode_payload(maps:get(data, S, <<>>)),
-        metadata  => decode_payload(maps:get(metadata, S, <<>>)),
+        data      => InnerData,
+        metadata  => InnerMetadata,
         timestamp => maps:get(timestamp, S, 0)
     }.
+
+%% If the decoded data has the wrapper shape (`{<<"data">>: ..., <<"metadata">>: ...}'),
+%% unwrap. Otherwise pass through.
+unwrap_snapshot_payload(#{<<"data">> := Inner} = Wrapper, _OuterMeta) ->
+    InnerMeta = maps:get(<<"metadata">>, Wrapper, #{}),
+    {Inner, InnerMeta};
+unwrap_snapshot_payload(Data, Metadata) ->
+    {Data, Metadata}.
 
 %%====================================================================
 %% Internal

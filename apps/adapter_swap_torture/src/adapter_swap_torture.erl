@@ -63,16 +63,30 @@ with_reckon_evoq_store(Scenario) when is_function(Scenario, 1) ->
 %% hecate-gitops on the beam cluster, or a local podman container
 %% for dev).
 %%
-%% Each call generates a fresh store_id; the cluster routes by it
-%% and the gateway creates streams on first append.
+%% Each scenario runs against the pre-configured `default_store' on
+%% the cluster (the only store the gateway's sys.config declares).
+%% Per-run uniqueness comes from the scenario's stream_id, not the
+%% store_id — see adapter_swap_basic_scenario:run/1.
+%%
+%% Dynamic store creation via gRPC is not yet a feature of the
+%% gateway (the proto layer accepts arbitrary store ids since
+%% reckon-gateway 0.3.0+, but the reckon_db_sup:start_store/1 call
+%% must happen out-of-band on the server). See the v0.4.0 TODO in
+%% the gateway repo.
 with_clustered_reckon_store(Scenario) when is_function(Scenario, 1) ->
     {ok, _} = application:ensure_all_started(grpcbox),
+    %% grpcbox_channel:start_link/3 links the channel to the caller.
+    %% If the channel dies (e.g. all endpoints unreachable), the caller
+    %% process is killed by the EXIT signal. Trap exits so we can
+    %% observe the death instead of dying with it.
+    OldTrap = process_flag(trap_exit, true),
     {Host, Port} = resolve_gateway_endpoint(),
     ok = reckon_e2e_grpc_facade:start_channel(Host, Port),
-    StoreId = unique_store_id("clustered"),
-    Driver = #{store_id => StoreId, facade => reckon_e2e_grpc_facade},
+    Driver = #{store_id => default_store, facade => reckon_e2e_grpc_facade},
     try Scenario(Driver)
-    after catch reckon_e2e_grpc_facade:stop_channel()
+    after
+        catch reckon_e2e_grpc_facade:stop_channel(),
+        process_flag(trap_exit, OldTrap)
     end.
 
 resolve_gateway_endpoint() ->
@@ -92,13 +106,30 @@ resolve_gateway_endpoint() ->
 %% Returns ok on match, or {differs, #{key := {LeftValue, RightValue}}}
 %% as a structured diff.
 compare_outcomes(Left, Right) when is_map(Left), is_map(Right) ->
-    LeftScrubbed = scrub_volatile(Left),
-    RightScrubbed = scrub_volatile(Right),
+    LeftScrubbed = normalize(scrub_volatile(Left)),
+    RightScrubbed = normalize(scrub_volatile(Right)),
     compare_scrubbed(LeftScrubbed, RightScrubbed).
 
 scrub_volatile(Map) ->
     Volatile = [timestamp, epoch_us, event_id, event_ids, timestamps],
     maps:without(Volatile, Map).
+
+%% The gRPC facade goes through JSON on the wire, so payload map
+%% keys come back as binaries. mem-evoq preserves Erlang term shape
+%% so they stay atoms. Normalize both sides to binary keys before
+%% diffing so the comparison reflects structural equality, not
+%% serialization choices.
+normalize(V) when is_map(V) ->
+    maps:from_list([{norm_key(K), normalize(Val)} || {K, Val} <- maps:to_list(V)]);
+normalize(V) when is_list(V) ->
+    [normalize(E) || E <- V];
+normalize(V) when is_atom(V), V =/= true, V =/= false, V =/= undefined, V =/= null ->
+    atom_to_binary(V, utf8);
+normalize(V) ->
+    V.
+
+norm_key(K) when is_atom(K) -> atom_to_binary(K, utf8);
+norm_key(K)                  -> K.
 
 compare_scrubbed(Same, Same) ->
     ok;
