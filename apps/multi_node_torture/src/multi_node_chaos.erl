@@ -14,7 +14,9 @@
          find_leader/1,
          kill_leader/1,
          restart_node/1,
-         wait_for_leader_change/3]).
+         wait_for_leader_change/3,
+         partition_minority/1,
+         heal_partition/0]).
 
 -define(SSH_OPTS, "-o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=5").
 
@@ -144,3 +146,90 @@ wait_loop(StoreId, OldNode, Deadline) ->
                     wait_loop(StoreId, OldNode, Deadline)
             end
     end.
+
+%%====================================================================
+%% Network partition (iptables)
+%%====================================================================
+
+%% @doc Create a 1-vs-N partition by isolating `MinorityHost' (a
+%% string like "beam03.lab") from all other cluster hosts. Drops
+%% traffic in BOTH directions so TCP handshakes fail fast rather
+%% than waiting for SYN-timeout.
+%%
+%% All inserted rules carry a comment so `heal_partition/0' can find
+%% and remove just our rules, leaving any pre-existing iptables
+%% configuration intact.
+%%
+%% Returns {ok, MinorityHost, [OtherHost]} or {error, _}.
+-spec partition_minority(string()) ->
+    {ok, string(), [string()]} | {error, term()}.
+partition_minority(MinorityHost) ->
+    All = cluster_hosts(),
+    case lists:keyfind(MinorityHost, 1, All) of
+        false -> {error, {unknown_host, MinorityHost}};
+        _ ->
+            OtherHosts = [H || {H, _} <- All, H =/= MinorityHost],
+            MinorityIp = host_ip(MinorityHost),
+            OtherIps = [host_ip(H) || H <- OtherHosts],
+            %% Drop on minority side: block to/from each OtherIp.
+            lists:foreach(
+                fun(OtherIp) ->
+                    drop_rule(MinorityHost, "OUTPUT", "-d", OtherIp),
+                    drop_rule(MinorityHost, "INPUT",  "-s", OtherIp)
+                end, OtherIps),
+            %% Drop on each majority side: block to/from MinorityIp.
+            lists:foreach(
+                fun(OtherHost) ->
+                    drop_rule(OtherHost, "OUTPUT", "-d", MinorityIp),
+                    drop_rule(OtherHost, "INPUT",  "-s", MinorityIp)
+                end, OtherHosts),
+            {ok, MinorityHost, OtherHosts}
+    end.
+
+%% @doc Remove every iptables rule tagged with our comment, on every
+%% cluster host. Idempotent — re-running has no effect.
+-spec heal_partition() -> ok.
+heal_partition() ->
+    [remove_torture_rules(Host) || {Host, _} <- cluster_hosts()],
+    ok.
+
+%%====================================================================
+%% Internal — iptables helpers
+%%====================================================================
+
+-define(TORTURE_TAG, "reckon-torture").
+
+drop_rule(Host, Chain, Dir, Ip) ->
+    %% -C exists-check first so we don't stack duplicate rules if the
+    %% scenario double-partitions.
+    Check = lists:flatten(io_lib:format(
+        "ssh ~s rl@~s 'sudo -n iptables -C ~s ~s ~s -m comment "
+        "--comment ~s -j DROP' 2>/dev/null && echo EXISTS",
+        [?SSH_OPTS, Host, Chain, Dir, Ip, ?TORTURE_TAG])),
+    case string:trim(os:cmd(Check)) of
+        "EXISTS" -> ok;
+        _ ->
+            Add = lists:flatten(io_lib:format(
+                "ssh ~s rl@~s 'sudo -n iptables -I ~s ~s ~s -m comment "
+                "--comment ~s -j DROP' 2>&1",
+                [?SSH_OPTS, Host, Chain, Dir, Ip, ?TORTURE_TAG])),
+            _ = os:cmd(Add),
+            ok
+    end.
+
+remove_torture_rules(Host) ->
+    %% Dump rules in -S format, grep ours, rewrite -A as -D, run
+    %% them back. Handles however many we inserted (input + output
+    %% across multiple peer IPs).
+    Cmd = lists:flatten(io_lib:format(
+        "ssh ~s rl@~s 'sudo -n iptables -S | grep -- \"--comment ~s\" "
+        "| sed \"s/^-A/-D/\" | while read R; do sudo -n iptables $R; done' "
+        "2>&1",
+        [?SSH_OPTS, Host, ?TORTURE_TAG])),
+    _ = os:cmd(Cmd),
+    ok.
+
+host_ip("beam00.lab") -> "192.168.1.10";
+host_ip("beam01.lab") -> "192.168.1.11";
+host_ip("beam02.lab") -> "192.168.1.12";
+host_ip("beam03.lab") -> "192.168.1.13".
