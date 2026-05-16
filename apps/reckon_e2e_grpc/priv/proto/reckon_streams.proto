@@ -1,0 +1,123 @@
+syntax = "proto3";
+
+package reckon.gateway.v1;
+
+option go_package = "github.com/reckon-db-org/reckon-gateway/gen/go/gatewayv1;gatewayv1";
+
+import "reckon_shared.proto";
+
+// StreamService provides event stream operations for the ReckonDB event store.
+//
+// Streams are append-only sequences of events identified by a stream_id.
+// Each event has a monotonically increasing version within its stream.
+service StreamService {
+
+  // Append events to a stream with optional optimistic concurrency control.
+  rpc AppendEvents(AppendEventsRequest) returns (AppendEventsResponse);
+
+  // Read events from a stream in forward direction.
+  rpc ReadStreamForward(ReadStreamRequest) returns (ReadStreamResponse);
+
+  // Read events from a stream in backward direction.
+  rpc ReadStreamBackward(ReadStreamRequest) returns (ReadStreamResponse);
+
+  // Stream events forward in real-time (server-streaming).
+  rpc StreamEventsForward(ReadStreamRequest) returns (stream RecordedEvent);
+
+  // Get the current version (last event number) of a stream.
+  rpc GetStreamVersion(GetStreamVersionRequest) returns (GetStreamVersionResponse);
+
+  // List all streams in the store.
+  rpc ListStreams(ListStreamsRequest) returns (ListStreamsResponse);
+
+  // Delete a stream.
+  rpc DeleteStream(DeleteStreamRequest) returns (DeleteStreamResponse);
+
+  // Read events by event types across all streams.
+  rpc ReadByEventTypes(ReadByEventTypesRequest) returns (ReadStreamResponse);
+
+  // Read events by tags across all streams.
+  rpc ReadByTags(ReadByTagsRequest) returns (ReadStreamResponse);
+
+  // Read all events globally, ordered by epoch_us.
+  rpc ReadAllGlobal(ReadAllGlobalRequest) returns (ReadStreamResponse);
+}
+
+// ──────────────────────────────────────────────
+// Requests
+// ──────────────────────────────────────────────
+
+message AppendEventsRequest {
+  string store_id = 1;
+  string stream_id = 2;
+
+  // Expected version for optimistic concurrency.
+  // Use ExpectedVersion constants: NO_STREAM (-1), ANY_VERSION (-2), STREAM_EXISTS (-4).
+  int64 expected_version = 3;
+
+  repeated ProposedEvent events = 4;
+}
+
+message ReadStreamRequest {
+  string store_id = 1;
+  string stream_id = 2;
+  uint64 start_version = 3;
+  uint64 count = 4;
+}
+
+message GetStreamVersionRequest {
+  string store_id = 1;
+  string stream_id = 2;
+}
+
+message ListStreamsRequest {
+  string store_id = 1;
+}
+
+message DeleteStreamRequest {
+  string store_id = 1;
+  string stream_id = 2;
+}
+
+message ReadByEventTypesRequest {
+  string store_id = 1;
+  repeated string event_types = 2;
+  uint64 batch_size = 3;
+}
+
+message ReadByTagsRequest {
+  string store_id = 1;
+  repeated string tags = 2;
+  TagMatch match = 3;
+  uint64 batch_size = 4;
+}
+
+message ReadAllGlobalRequest {
+  string store_id = 1;
+  uint64 offset = 2;
+  uint64 limit = 3;
+}
+
+// ──────────────────────────────────────────────
+// Responses
+// ──────────────────────────────────────────────
+
+message AppendEventsResponse {
+  uint64 version = 1;
+  uint64 position = 2;
+  uint64 count = 3;
+}
+
+message ReadStreamResponse {
+  repeated RecordedEvent events = 1;
+}
+
+message GetStreamVersionResponse {
+  int64 version = 1;
+}
+
+message ListStreamsResponse {
+  repeated string stream_ids = 1;
+}
+
+message DeleteStreamResponse {}

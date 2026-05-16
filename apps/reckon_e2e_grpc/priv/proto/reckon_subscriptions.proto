@@ -1,0 +1,114 @@
+syntax = "proto3";
+
+package reckon.gateway.v1;
+
+option go_package = "github.com/reckon-db-org/reckon-gateway/gen/go/gatewayv1;gatewayv1";
+
+import "reckon_shared.proto";
+
+// SubscriptionService manages persistent subscriptions to event streams.
+//
+// Subscriptions allow clients to receive events as they are appended,
+// with checkpointing for reliable delivery.
+service SubscriptionService {
+
+  // Subscribe to events (server-streaming).
+  // Events are streamed as they are appended. The client must ACK
+  // each event to advance the checkpoint.
+  rpc Subscribe(SubscribeRequest) returns (stream SubscriptionEvent);
+
+  // Acknowledge processing of an event, advancing the checkpoint.
+  rpc AckEvent(AckEventRequest) returns (AckEventResponse);
+
+  // Create a persistent subscription without streaming.
+  rpc CreateSubscription(CreateSubscriptionRequest) returns (CreateSubscriptionResponse);
+
+  // Remove a persistent subscription.
+  rpc RemoveSubscription(RemoveSubscriptionRequest) returns (RemoveSubscriptionResponse);
+
+  // List all subscriptions for a store.
+  rpc ListSubscriptions(ListSubscriptionsRequest) returns (ListSubscriptionsResponse);
+
+  // Get a specific subscription by name.
+  rpc GetSubscription(GetSubscriptionRequest) returns (SubscriptionInfo);
+
+  // Get the lag (events behind) for a subscription.
+  rpc GetSubscriptionLag(GetSubscriptionLagRequest) returns (GetSubscriptionLagResponse);
+}
+
+// ──────────────────────────────────────────────
+// Requests
+// ──────────────────────────────────────────────
+
+message SubscribeRequest {
+  string store_id = 1;
+  SubscriptionType type = 2;
+  string selector = 3;
+  string subscription_name = 4;
+  uint64 start_from = 5;
+  uint32 pool_size = 6;
+}
+
+message AckEventRequest {
+  string store_id = 1;
+  string stream_id = 2;
+  string subscription_name = 3;
+  uint64 event_number = 4;
+}
+
+message CreateSubscriptionRequest {
+  string store_id = 1;
+  SubscriptionType type = 2;
+  string selector = 3;
+  string subscription_name = 4;
+  uint64 start_from = 5;
+  uint32 pool_size = 6;
+}
+
+message RemoveSubscriptionRequest {
+  string store_id = 1;
+  SubscriptionType type = 2;
+  string selector = 3;
+  string subscription_name = 4;
+}
+
+message ListSubscriptionsRequest {
+  string store_id = 1;
+}
+
+message GetSubscriptionRequest {
+  string store_id = 1;
+  string subscription_name = 2;
+}
+
+message GetSubscriptionLagRequest {
+  string store_id = 1;
+  string subscription_name = 2;
+}
+
+// ──────────────────────────────────────────────
+// Responses
+// ──────────────────────────────────────────────
+
+message SubscriptionEvent {
+  RecordedEvent event = 1;
+  uint64 checkpoint = 2;
+}
+
+message AckEventResponse {}
+
+message CreateSubscriptionResponse {
+  string subscription_id = 1;
+}
+
+message RemoveSubscriptionResponse {}
+
+message ListSubscriptionsResponse {
+  repeated SubscriptionInfo subscriptions = 1;
+}
+
+message GetSubscriptionLagResponse {
+  uint64 lag = 1;
+  uint64 current_checkpoint = 2;
+  uint64 latest_version = 3;
+}

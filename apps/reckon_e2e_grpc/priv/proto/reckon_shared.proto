@@ -1,0 +1,132 @@
+syntax = "proto3";
+
+package reckon.gateway.v1;
+
+option go_package = "github.com/reckon-db-org/reckon-gateway/gen/go/gatewayv1;gatewayv1";
+
+// ──────────────────────────────────────────────
+// Core Event Types
+// ──────────────────────────────────────────────
+
+// ProposedEvent is an event to be appended to a stream.
+message ProposedEvent {
+  // Client-generated event ID (UUID). Server generates one if empty.
+  string event_id = 1;
+
+  // Event type name (e.g., "user_registered_v1").
+  string event_type = 2;
+
+  // Event payload as JSON bytes.
+  bytes data = 3;
+
+  // Event metadata as JSON bytes (correlation_id, causation_id, etc.).
+  bytes metadata = 4;
+
+  // Optional tags for cross-stream querying.
+  repeated string tags = 5;
+
+  // Content type of data field. Default: "application/json".
+  string data_content_type = 6;
+
+  // Content type of metadata field. Default: "application/json".
+  string metadata_content_type = 7;
+}
+
+// RecordedEvent is a persisted event read from a stream.
+message RecordedEvent {
+  string event_id = 1;
+  string event_type = 2;
+  string stream_id = 3;
+  uint64 version = 4;
+  bytes data = 5;
+  bytes metadata = 6;
+  repeated string tags = 7;
+  int64 timestamp = 8;
+  int64 epoch_us = 9;
+  string data_content_type = 10;
+  string metadata_content_type = 11;
+
+  // Tamper-resistance fields (added in reckon-gateway 0.2.0,
+  // corresponding to reckon-db / reckon-gater 2.1.0).
+  //
+  // SHA-256 chain hash linking this event back to its predecessor
+  // in the same stream. Empty bytes for legacy events written
+  // before integrity was enabled for the stream. Polyglot clients
+  // can verify chain continuity with their own SHA-256 implementation
+  // by walking the events they receive — no shared secret required.
+  //
+  // The corresponding HMAC field on the storage side is NEVER
+  // transmitted: it is a symmetric secret bound to the per-store
+  // HMAC key, and leaking it to gateway clients would defeat its
+  // purpose. External authenticity (verifiable without the HMAC
+  // key) is a future reckon-gateway feature backed by Ed25519
+  // signatures.
+  bytes prev_event_hash = 12;
+}
+
+// ──────────────────────────────────────────────
+// Snapshot Types
+// ──────────────────────────────────────────────
+
+message SnapshotRecord {
+  string stream_id = 1;
+  uint64 version = 2;
+  bytes data = 3;
+  bytes metadata = 4;
+  int64 timestamp = 5;
+
+  // Tamper-resistance fields (added in reckon-gateway 0.2.0).
+  //
+  // SHA-256 chain hash of the event at this snapshot's `version`,
+  // captured at snapshot-save time. On the client side, this lets
+  // a consumer verify that the snapshot has not been tampered with
+  // and that the underlying stream has not been mutated AFTER the
+  // snapshot was taken (by recomputing the chain hash at `version`
+  // from the events).
+  //
+  // Empty bytes for legacy snapshots written before integrity was
+  // enabled on the store.
+  bytes anchor_hash = 6;
+}
+
+// ──────────────────────────────────────────────
+// Subscription Types
+// ──────────────────────────────────────────────
+
+enum SubscriptionType {
+  SUBSCRIPTION_TYPE_UNSPECIFIED = 0;
+  SUBSCRIPTION_TYPE_STREAM = 1;
+  SUBSCRIPTION_TYPE_EVENT_TYPE = 2;
+  SUBSCRIPTION_TYPE_EVENT_PATTERN = 3;
+  SUBSCRIPTION_TYPE_EVENT_PAYLOAD = 4;
+  SUBSCRIPTION_TYPE_TAGS = 5;
+}
+
+message SubscriptionInfo {
+  string id = 1;
+  SubscriptionType type = 2;
+  string selector = 3;
+  string subscription_name = 4;
+  int64 created_at = 5;
+  uint32 pool_size = 6;
+  uint64 checkpoint = 7;
+}
+
+// ──────────────────────────────────────────────
+// Enums
+// ──────────────────────────────────────────────
+
+enum TagMatch {
+  TAG_MATCH_ANY = 0;
+  TAG_MATCH_ALL = 1;
+}
+
+// ──────────────────────────────────────────────
+// Expected Version Constants
+// ──────────────────────────────────────────────
+//
+// Use these in AppendEventsRequest.expected_version:
+//   NO_STREAM    = -1  (stream must not exist)
+//   ANY_VERSION  = -2  (no version check)
+//   STREAM_EXISTS = -4  (stream must already exist)
+//   >= 0              (exact version match)

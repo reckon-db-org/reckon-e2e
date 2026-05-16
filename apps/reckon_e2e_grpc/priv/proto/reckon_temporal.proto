@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package reckon.gateway.v1;
+
+option go_package = "github.com/reckon-db-org/reckon-gateway/gen/go/gatewayv1;gatewayv1";
+
+import "reckon_shared.proto";
+
+// TemporalService provides time-based event queries.
+//
+// Query events by timestamp ranges, useful for debugging,
+// auditing, and point-in-time reconstruction.
+service TemporalService {
+
+  // Read events from a stream up to a timestamp.
+  rpc ReadUntil(ReadUntilRequest) returns (ReadUntilResponse);
+
+  // Read events from a stream within a time range.
+  rpc ReadRange(ReadRangeRequest) returns (ReadRangeResponse);
+
+  // Get the stream version at a specific point in time.
+  rpc VersionAt(VersionAtRequest) returns (VersionAtResponse);
+}
+
+// ──────────────────────────────────────────────
+// Requests
+// ──────────────────────────────────────────────
+
+message ReadUntilRequest {
+  string store_id = 1;
+  string stream_id = 2;
+  int64 timestamp = 3;
+  uint64 batch_size = 4;
+}
+
+message ReadRangeRequest {
+  string store_id = 1;
+  string stream_id = 2;
+  int64 from_timestamp = 3;
+  int64 to_timestamp = 4;
+  uint64 batch_size = 5;
+}
+
+message VersionAtRequest {
+  string store_id = 1;
+  string stream_id = 2;
+  int64 timestamp = 3;
+}
+
+// ──────────────────────────────────────────────
+// Responses
+// ──────────────────────────────────────────────
+
+message ReadUntilResponse {
+  repeated RecordedEvent events = 1;
+}
+
+message ReadRangeResponse {
+  repeated RecordedEvent events = 1;
+}
+
+message VersionAtResponse {
+  int64 version = 1;
+}

@@ -1,0 +1,161 @@
+syntax = "proto3";
+
+package reckon.gateway.v1;
+
+option go_package = "github.com/reckon-db-org/reckon-gateway/gen/go/gatewayv1;gatewayv1";
+
+// HealthService provides health checking and cluster diagnostics.
+service HealthService {
+
+  // Quick health check for a specific store.
+  rpc Check(HealthCheckRequest) returns (HealthCheckResponse);
+
+  // Overall gateway health (all stores).
+  rpc Health(HealthRequest) returns (HealthResponse);
+
+  // Verify cluster consistency for a store.
+  rpc VerifyClusterConsistency(ClusterCheckRequest) returns (ClusterCheckResponse);
+
+  // Verify membership consensus across cluster nodes.
+  rpc VerifyMembershipConsensus(ClusterCheckRequest) returns (ClusterCheckResponse);
+
+  // Check Raft log consistency.
+  rpc CheckRaftLogConsistency(ClusterCheckRequest) returns (ClusterCheckResponse);
+
+  // Get memory pressure level for a store.
+  rpc GetMemoryLevel(MemoryLevelRequest) returns (MemoryLevelResponse);
+
+  // Get detailed memory statistics for a store.
+  rpc GetMemoryStats(MemoryStatsRequest) returns (MemoryStatsResponse);
+
+  // Get server / store configuration including the tamper-resistance
+  // algorithm identifier the client must use to verify chain
+  // hashes locally. Added in reckon-gateway 0.2.0.
+  rpc GetServerInfo(GetServerInfoRequest) returns (ServerInfoResponse);
+}
+
+// ──────────────────────────────────────────────
+// Requests
+// ──────────────────────────────────────────────
+
+message HealthCheckRequest {
+  string store_id = 1;
+}
+
+message HealthRequest {}
+
+message ClusterCheckRequest {
+  string store_id = 1;
+}
+
+message MemoryLevelRequest {
+  string store_id = 1;
+}
+
+message MemoryStatsRequest {
+  string store_id = 1;
+}
+
+// ──────────────────────────────────────────────
+// Responses
+// ──────────────────────────────────────────────
+
+enum HealthStatus {
+  HEALTH_STATUS_HEALTHY = 0;
+  HEALTH_STATUS_DEGRADED = 1;
+  HEALTH_STATUS_UNHEALTHY = 2;
+}
+
+message HealthCheckResponse {
+  HealthStatus status = 1;
+  map<string, string> details = 2;
+}
+
+message HealthResponse {
+  HealthStatus status = 1;
+  map<string, uint32> stores = 2;
+  uint32 total_workers = 3;
+  string node = 4;
+  int64 timestamp = 5;
+}
+
+enum ClusterStatus {
+  CLUSTER_STATUS_HEALTHY = 0;
+  CLUSTER_STATUS_DEGRADED = 1;
+  CLUSTER_STATUS_SPLIT_BRAIN = 2;
+  CLUSTER_STATUS_NO_QUORUM = 3;
+}
+
+message ClusterCheckResponse {
+  ClusterStatus status = 1;
+  map<string, string> details = 2;
+}
+
+enum MemoryLevel {
+  MEMORY_LEVEL_LOW = 0;
+  MEMORY_LEVEL_NORMAL = 1;
+  MEMORY_LEVEL_HIGH = 2;
+  MEMORY_LEVEL_CRITICAL = 3;
+}
+
+message MemoryLevelResponse {
+  MemoryLevel level = 1;
+}
+
+message MemoryStatsResponse {
+  uint64 used_bytes = 1;
+  uint64 total_bytes = 2;
+  double usage_percent = 3;
+  map<string, uint64> breakdown = 4;
+}
+
+// ──────────────────────────────────────────────
+// GetServerInfo (added in reckon-gateway 0.2.0)
+// ──────────────────────────────────────────────
+
+message GetServerInfoRequest {
+  // Store to inquire about. Required - integrity configuration is
+  // per-store, not gateway-global.
+  string store_id = 1;
+}
+
+message ServerInfoResponse {
+  // Versions of the underlying packages, advertised so clients can
+  // negotiate features and surface compatibility errors locally
+  // rather than discovering them via failed RPCs.
+  string reckon_db_version = 1;
+  string reckon_gateway_version = 2;
+
+  // Tamper-resistance algorithm identifier for chain hashes on
+  // RecordedEvent.prev_event_hash and SnapshotRecord.anchor_hash.
+  //
+  // Current value: "sha256-deterministic-etf-v1"
+  //   - sha256: hash function
+  //   - deterministic-etf: canonical encoding via Erlang's
+  //     term_to_binary with the deterministic flag (ETF v2)
+  //   - v1: format version; bumped if the canonical encoding ever
+  //     changes
+  //
+  // Polyglot clients use this string to confirm they have a
+  // compatible chain-hash verifier before they begin walking
+  // received events. Empty string when integrity is disabled on
+  // the store.
+  string integrity_algo = 3;
+
+  // Whether the addressed store has integrity enabled. When false,
+  // RecordedEvent.prev_event_hash and SnapshotRecord.anchor_hash
+  // will be empty bytes on all events from this store regardless
+  // of age.
+  bool integrity_enabled = 4;
+
+  // Current writer HMAC key ID for the addressed store. Always 1
+  // in 0.2.0 / reckon-db 2.1.0; reserved for key rotation in
+  // reckon-db 2.2. Zero when integrity_enabled is false. The key
+  // itself is NEVER returned over the wire.
+  uint32 hmac_key_id = 5;
+
+  // Server-advertised API compatibility version. Clients can use
+  // this to detect breaking proto changes when the proto file is
+  // not in sync.
+  string api_compatibility_version = 6;
+}

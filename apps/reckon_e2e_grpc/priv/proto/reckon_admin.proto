@@ -1,0 +1,195 @@
+syntax = "proto3";
+
+package reckon.gateway.v1;
+
+option go_package = "github.com/reckon-db-org/reckon-gateway/gen/go/gatewayv1;gatewayv1";
+
+// AdminService provides store inspection, scavenging, and link management.
+service AdminService {
+
+  // ── Store Inspection ──
+
+  // Get overall store statistics.
+  rpc GetStoreStats(StoreStatsRequest) returns (StoreStatsResponse);
+
+  // Get detailed information about a specific stream.
+  rpc GetStreamInfo(StreamInfoRequest) returns (StreamInfoResponse);
+
+  // Get a summary of event types and their counts.
+  rpc GetEventTypeSummary(EventTypeSummaryRequest) returns (EventTypeSummaryResponse);
+
+  // List all stores registered with the gateway.
+  rpc ListStores(ListStoresRequest) returns (ListStoresResponse);
+
+  // ── Scavenging ──
+
+  // Scavenge (compact) a stream by removing superseded events.
+  rpc Scavenge(ScavengeRequest) returns (ScavengeResponse);
+
+  // Scavenge all streams matching a pattern.
+  rpc ScavengeMatching(ScavengeMatchingRequest) returns (ScavengeMatchingResponse);
+
+  // Preview what a scavenge operation would do (dry run).
+  rpc ScavengeDryRun(ScavengeRequest) returns (ScavengeResponse);
+
+  // ── Stream Links ──
+
+  // Create a link between streams.
+  rpc CreateLink(CreateLinkRequest) returns (CreateLinkResponse);
+
+  // Delete a link.
+  rpc DeleteLink(DeleteLinkRequest) returns (DeleteLinkResponse);
+
+  // Get link information.
+  rpc GetLink(GetLinkRequest) returns (LinkInfo);
+
+  // List all links for a store.
+  rpc ListLinks(ListLinksRequest) returns (ListLinksResponse);
+
+  // Start a link (begin processing).
+  rpc StartLink(StartLinkRequest) returns (StartLinkResponse);
+
+  // Stop a link (pause processing).
+  rpc StopLink(StopLinkRequest) returns (StopLinkResponse);
+
+  // Get runtime info about a link.
+  rpc GetLinkInfo(GetLinkRequest) returns (LinkRuntimeInfo);
+}
+
+// ──────────────────────────────────────────────
+// Store Inspection
+// ──────────────────────────────────────────────
+
+message StoreStatsRequest {
+  string store_id = 1;
+}
+
+message StoreStatsResponse {
+  uint64 total_streams = 1;
+  uint64 total_events = 2;
+  uint64 total_subscriptions = 3;
+  uint64 total_snapshots = 4;
+  map<string, string> details = 5;
+}
+
+message StreamInfoRequest {
+  string store_id = 1;
+  string stream_id = 2;
+}
+
+message StreamInfoResponse {
+  string stream_id = 1;
+  uint64 version = 2;
+  uint64 event_count = 3;
+  int64 created_at = 4;
+  int64 last_event_at = 5;
+  repeated string event_types = 6;
+}
+
+message EventTypeSummaryRequest {
+  string store_id = 1;
+}
+
+message EventTypeSummaryEntry {
+  string event_type = 1;
+  uint64 count = 2;
+}
+
+message EventTypeSummaryResponse {
+  repeated EventTypeSummaryEntry entries = 1;
+}
+
+message ListStoresRequest {}
+
+message ListStoresResponse {
+  repeated string store_ids = 1;
+}
+
+// ──────────────────────────────────────────────
+// Scavenging
+// ──────────────────────────────────────────────
+
+message ScavengeRequest {
+  string store_id = 1;
+  string stream_id = 2;
+  map<string, string> options = 3;
+}
+
+message ScavengeResponse {
+  uint64 events_removed = 1;
+  uint64 events_remaining = 2;
+  uint64 space_reclaimed_bytes = 3;
+  map<string, string> details = 4;
+}
+
+message ScavengeMatchingRequest {
+  string store_id = 1;
+  string pattern = 2;
+  map<string, string> options = 3;
+}
+
+message ScavengeMatchingResponse {
+  repeated ScavengeResponse results = 1;
+}
+
+// ──────────────────────────────────────────────
+// Stream Links
+// ──────────────────────────────────────────────
+
+message CreateLinkRequest {
+  string store_id = 1;
+  string name = 2;
+  string source = 3;
+  string target = 4;
+  map<string, string> options = 5;
+}
+
+message CreateLinkResponse {}
+
+message DeleteLinkRequest {
+  string store_id = 1;
+  string name = 2;
+}
+
+message DeleteLinkResponse {}
+
+message GetLinkRequest {
+  string store_id = 1;
+  string name = 2;
+}
+
+message LinkInfo {
+  string name = 1;
+  string source = 2;
+  string target = 3;
+  map<string, string> options = 4;
+}
+
+message StartLinkRequest {
+  string store_id = 1;
+  string name = 2;
+}
+
+message StartLinkResponse {}
+
+message StopLinkRequest {
+  string store_id = 1;
+  string name = 2;
+}
+
+message StopLinkResponse {}
+
+message ListLinksRequest {
+  string store_id = 1;
+}
+
+message ListLinksResponse {
+  repeated LinkInfo links = 1;
+}
+
+message LinkRuntimeInfo {
+  string name = 1;
+  string status = 2;
+  uint64 events_processed = 3;
+  map<string, string> details = 4;
+}

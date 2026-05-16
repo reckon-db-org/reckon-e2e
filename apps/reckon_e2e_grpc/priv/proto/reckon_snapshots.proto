@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package reckon.gateway.v1;
+
+option go_package = "github.com/reckon-db-org/reckon-gateway/gen/go/gatewayv1;gatewayv1";
+
+import "reckon_shared.proto";
+
+// SnapshotService manages aggregate state snapshots.
+//
+// Snapshots are periodic captures of aggregate state to speed up
+// event stream replay during aggregate loading.
+service SnapshotService {
+
+  // Save a snapshot of aggregate state.
+  rpc RecordSnapshot(RecordSnapshotRequest) returns (RecordSnapshotResponse);
+
+  // Read the latest snapshot for a source/stream.
+  rpc ReadSnapshot(ReadSnapshotRequest) returns (SnapshotRecord);
+
+  // Delete a specific snapshot.
+  rpc DeleteSnapshot(DeleteSnapshotRequest) returns (DeleteSnapshotResponse);
+
+  // List all snapshots for a source/stream.
+  rpc ListSnapshots(ListSnapshotsRequest) returns (ListSnapshotsResponse);
+
+  // List all snapshots across all streams in a store.
+  rpc ListAllSnapshots(ListAllSnapshotsRequest) returns (ListSnapshotsResponse);
+}
+
+// ──────────────────────────────────────────────
+// Requests
+// ──────────────────────────────────────────────
+
+message RecordSnapshotRequest {
+  string store_id = 1;
+  string source_uuid = 2;
+  string stream_uuid = 3;
+  uint64 version = 4;
+  bytes data = 5;
+  bytes metadata = 6;
+}
+
+message ReadSnapshotRequest {
+  string store_id = 1;
+  string source_uuid = 2;
+  string stream_uuid = 3;
+  uint64 version = 4;
+}
+
+message DeleteSnapshotRequest {
+  string store_id = 1;
+  string source_uuid = 2;
+  string stream_uuid = 3;
+  uint64 version = 4;
+}
+
+message ListSnapshotsRequest {
+  string store_id = 1;
+  string source_uuid = 2;
+  string stream_uuid = 3;
+}
+
+message ListAllSnapshotsRequest {
+  string store_id = 1;
+}
+
+// ──────────────────────────────────────────────
+// Responses
+// ──────────────────────────────────────────────
+
+message RecordSnapshotResponse {}
+
+message DeleteSnapshotResponse {}
+
+message ListSnapshotsResponse {
+  repeated SnapshotRecord snapshots = 1;
+}

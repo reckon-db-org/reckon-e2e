@@ -1,0 +1,92 @@
+syntax = "proto3";
+
+package reckon.gateway.v1;
+
+option go_package = "github.com/reckon-db-org/reckon-gateway/gen/go/gatewayv1;gatewayv1";
+
+import "reckon_shared.proto";
+
+// SchemaService manages event type schemas and upcasting.
+//
+// Register schemas for event types, enabling automatic
+// upcasting of older event versions to the latest format.
+service SchemaService {
+
+  // Register a schema for an event type.
+  rpc RegisterSchema(RegisterSchemaRequest) returns (RegisterSchemaResponse);
+
+  // Unregister a schema for an event type.
+  rpc UnregisterSchema(UnregisterSchemaRequest) returns (UnregisterSchemaResponse);
+
+  // Get the schema for an event type.
+  rpc GetSchema(GetSchemaRequest) returns (GetSchemaResponse);
+
+  // List all registered schemas.
+  rpc ListSchemas(ListSchemasRequest) returns (ListSchemasResponse);
+
+  // Get the current schema version for an event type.
+  rpc GetSchemaVersion(GetSchemaVersionRequest) returns (GetSchemaVersionResponse);
+
+  // Upcast events to their latest schema version.
+  rpc UpcastEvents(UpcastEventsRequest) returns (UpcastEventsResponse);
+}
+
+// ──────────────────────────────────────────────
+// Requests
+// ──────────────────────────────────────────────
+
+message RegisterSchemaRequest {
+  string store_id = 1;
+  string event_type = 2;
+  bytes schema = 3;
+}
+
+message UnregisterSchemaRequest {
+  string store_id = 1;
+  string event_type = 2;
+}
+
+message GetSchemaRequest {
+  string store_id = 1;
+  string event_type = 2;
+}
+
+message ListSchemasRequest {
+  string store_id = 1;
+}
+
+message GetSchemaVersionRequest {
+  string store_id = 1;
+  string event_type = 2;
+}
+
+message UpcastEventsRequest {
+  string store_id = 1;
+  repeated RecordedEvent events = 2;
+}
+
+// ──────────────────────────────────────────────
+// Responses
+// ──────────────────────────────────────────────
+
+message RegisterSchemaResponse {}
+
+message UnregisterSchemaResponse {}
+
+message GetSchemaResponse {
+  string event_type = 1;
+  bytes schema = 2;
+  uint32 version = 3;
+}
+
+message ListSchemasResponse {
+  repeated GetSchemaResponse schemas = 1;
+}
+
+message GetSchemaVersionResponse {
+  uint32 version = 1;
+}
+
+message UpcastEventsResponse {
+  repeated RecordedEvent events = 1;
+}
