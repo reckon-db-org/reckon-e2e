@@ -4,6 +4,21 @@ All notable changes to reckon-e2e will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.3.0] - 2026-05-16
+
+### Added — Facade abstraction (step 2 of the clustered fixture sequencing)
+
+Scenarios are now facade-blind. A Driver map (`#{store_id, facade}`) is threaded through the harness; scenarios call `Facade:append/4`, `Facade:read/5`, `Facade:save_snapshot/5`, `Facade:load_snapshot/2` — they don't know whether the calls go to `evoq_event_store` in-process or out to gRPC.
+
+- `reckon_e2e_facade` — `-callback` behaviour module declaring the four-function contract.
+- `reckon_e2e_local_facade` — implements the behaviour against `evoq_event_store` + `evoq_snapshot_store`. Used by `with_mem_evoq_store/1` and `with_reckon_evoq_store/1`.
+- `with_clustered_reckon_store/1` (next: step 3) will pass `reckon_e2e_grpc_facade` in the Driver instead.
+
+### Changed
+
+- `adapter_swap_basic_scenario:run/1` now takes a Driver map. The outcome map shape is unchanged.
+- `adapter_swap_torture.erl` fixtures build the Driver and pass it through.
+
 ## [0.2.1] - 2026-05-16
 
 ### Changed

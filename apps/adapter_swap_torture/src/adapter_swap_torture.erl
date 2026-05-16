@@ -28,26 +28,28 @@
 %% Adapter fixtures
 %%====================================================================
 
-%% @doc Run Scenario(StoreId) with mem_evoq_adapter plumbed into evoq.
-%% Returns whatever the scenario returns.
+%% @doc Run Scenario(Driver) with mem_evoq_adapter plumbed into evoq.
+%% The Driver carries the StoreId and the local facade module.
 with_mem_evoq_store(Scenario) when is_function(Scenario, 1) ->
     {ok, _} = application:ensure_all_started(mem_evoq),
     ok = evoq_event_store:set_adapter(mem_evoq_adapter),
     ok = evoq_snapshot_store:set_adapter(mem_evoq_adapter),
     StoreId = unique_store_id("mem_evoq"),
     {ok, _} = mem_evoq:start_store(StoreId),
-    try Scenario(StoreId)
+    Driver = #{store_id => StoreId, facade => reckon_e2e_local_facade},
+    try Scenario(Driver)
     after catch mem_evoq:stop_store(StoreId)
     end.
 
-%% @doc Run Scenario(StoreId) with reckon_evoq_adapter plumbed into
+%% @doc Run Scenario(Driver) with reckon_evoq_adapter plumbed into
 %% evoq. Wraps the reckon-db / khepri / ra startup boilerplate.
 with_reckon_evoq_store(Scenario) when is_function(Scenario, 1) ->
     ensure_reckon_db_started(),
     ok = evoq_event_store:set_adapter(reckon_evoq_adapter),
     ok = evoq_snapshot_store:set_adapter(reckon_evoq_adapter),
     {StoreId, DataDir} = start_reckon_store(),
-    try Scenario(StoreId)
+    Driver = #{store_id => StoreId, facade => reckon_e2e_local_facade},
+    try Scenario(Driver)
     after stop_reckon_store(StoreId, DataDir)
     end.
 
