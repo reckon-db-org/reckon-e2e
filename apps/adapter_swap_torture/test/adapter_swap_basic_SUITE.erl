@@ -15,8 +15,7 @@
 -include_lib("stdlib/include/assert.hrl").
 
 -export([all/0, suite/0,
-         init_per_suite/1, end_per_suite/1,
-         init_per_testcase/2, end_per_testcase/2]).
+         init_per_suite/1, end_per_suite/1]).
 
 -export([mem_evoq_basic_scenario_runs/1,
          adapters_produce_equivalent_outcomes/1]).
@@ -29,25 +28,6 @@ all() ->
 
 init_per_suite(Config) -> Config.
 end_per_suite(_Config) -> ok.
-
-%% The reckon-evoq side bootstraps cleanly through
-%% reckon_db_sup:start_store/1 (v0.2.1+), but `read/2' (snapshot)
-%% in reckon_evoq 2.1.0 expects map-shaped items from
-%% reckon_gater_api:list_snapshots and crashes with a `badmap` on
-%% the `#snapshot{}' records reckon-gater 2.1.0 actually returns.
-%% A real reckon-evoq adapter bug — the e2e harness surfaced it.
-%% Re-enable this case after reckon-evoq is patched.
-init_per_testcase(adapters_produce_equivalent_outcomes, Config) ->
-    case os:getenv("RECKON_E2E_FULL") of
-        "1" -> Config;
-        _   -> {skip, "RECKON_E2E_FULL not set — pending reckon-evoq fix "
-                      "for #snapshot{} record vs map shape mismatch on the "
-                      "snapshot read path"}
-    end;
-init_per_testcase(_TC, Config) ->
-    Config.
-
-end_per_testcase(_TC, _Config) -> ok.
 
 %%====================================================================
 %% Cases

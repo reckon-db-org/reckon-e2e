@@ -4,6 +4,15 @@ All notable changes to reckon-e2e will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.2.1] - 2026-05-16
+
+### Changed
+
+- Bumped `reckon_evoq` pin to 2.1.1 (snapshot read path fix).
+- Removed the `RECKON_E2E_FULL` skip-gate on `adapters_produce_equivalent_outcomes` — the cross-adapter equivalence test now runs by default in `rebar3 ct`.
+
+All 4 CT cases green: 2 in `integrity_torture` + 2 in `adapter_swap_torture` (mem-evoq baseline + cross-adapter comparison).
+
 ## [0.2.0] - 2026-05-16
 
 ### Added

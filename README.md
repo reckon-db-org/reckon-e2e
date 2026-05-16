@@ -63,7 +63,7 @@ Pinned in `rebar.config`. Bump deliberately, document in `CHANGELOG.md`.
 | Package | Version |
 |---|---|
 | `mem_evoq` | 0.1.2 |
-| `reckon_evoq` | 2.1.0 |
+| `reckon_evoq` | 2.1.1 |
 | `reckon_db` | 2.1.1 |
 | `evoq` | 1.15.0 |
 | `reckon_gater` | 2.1.0 |
