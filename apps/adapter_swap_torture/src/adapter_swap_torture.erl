@@ -18,6 +18,8 @@
 %% @end
 -module(adapter_swap_torture).
 
+-include_lib("reckon_db/include/reckon_db.hrl").
+
 -export([with_mem_evoq_store/1,
          with_reckon_evoq_store/1,
          compare_outcomes/2]).
@@ -87,31 +89,24 @@ include_if_differs(K, LeftV, RightV, Acc) ->
 %%====================================================================
 %% Internal — reckon-db lifecycle
 %%====================================================================
+%%
+%% Uses reckon-db's own high-level entry: reckon_db_sup:start_store/1.
+%% That dynamically adds the full supervision tree (emitter pool,
+%% subscription manager, writer/reader/gateway pools, store registry)
+%% under the running reckon_db_app. The harness no longer hand-rolls
+%% khepri:put baseline structure — the store config carries everything
+%% the supervision tree needs to bootstrap itself.
 
 ensure_reckon_db_started() ->
     {ok, _} = application:ensure_all_started(crypto),
     {ok, _} = application:ensure_all_started(telemetry),
-    ensure_ra_started(),
-    {ok, _} = application:ensure_all_started(khepri),
-    ensure_pg_scope_started(),
-    ok.
-
-ensure_ra_started() ->
-    RaDir = "/tmp/reckon_e2e_adapter_swap_ra",
-    application:set_env(ra, data_dir, RaDir),
+    %% ra's data_dir must be set BEFORE ra starts. Pick a stable dir
+    %% so that nested test runs share the ra system process.
+    RaDir = "/tmp/reckon_e2e_ra",
     ok = filelib:ensure_dir(filename:join(RaDir, "dummy")),
-    {ok, _} = application:ensure_all_started(ra),
-    case ra:start() of
-        ok                          -> ok;
-        {error, {already_started, _}} -> ok
-    end.
-
-ensure_pg_scope_started() ->
-    Scope = reckon_db_pg_scope,
-    case pg:start(Scope) of
-        {ok, _}                       -> ok;
-        {error, {already_started, _}} -> ok
-    end.
+    application:set_env(ra, data_dir, RaDir),
+    {ok, _} = application:ensure_all_started(reckon_db),
+    ok.
 
 start_reckon_store() ->
     Rand = integer_to_list(erlang:unique_integer([positive])),
@@ -119,16 +114,16 @@ start_reckon_store() ->
     os:cmd("rm -rf " ++ DataDir),
     ok = filelib:ensure_dir(filename:join(DataDir, "dummy")),
     StoreId = list_to_atom("swap_reckon_" ++ Rand),
-    {ok, _} = khepri:start(DataDir, StoreId),
-    khepri:put(StoreId, [streams], #{}),
-    khepri:put(StoreId, [snapshots], #{}),
-    khepri:put(StoreId, [subscriptions], #{}),
-    khepri:put(StoreId, [procs], #{}),
-    khepri:put(StoreId, [metadata], #{}),
+    Config = #store_config{
+        store_id = StoreId,
+        data_dir = DataDir,
+        mode     = single
+    },
+    {ok, _Pid} = reckon_db_sup:start_store(Config),
     {StoreId, DataDir}.
 
 stop_reckon_store(StoreId, DataDir) ->
-    catch khepri:stop(StoreId),
+    catch reckon_db_sup:stop_store(StoreId),
     os:cmd("rm -rf " ++ DataDir),
     ok.
 
