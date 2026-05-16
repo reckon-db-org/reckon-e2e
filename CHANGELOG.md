@@ -4,6 +4,22 @@ All notable changes to reckon-e2e will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.2.0] - 2026-05-16
+
+### Added
+
+- `adapter_swap_torture` axis — first scenario implemented.
+  - `adapter_swap_torture.erl` harness: `with_mem_evoq_store/1`, `with_reckon_evoq_store/1`, `compare_outcomes/2` (scrubs timing fields before structural-equality diff).
+  - `adapter_swap_basic_scenario.erl` — append → read → snapshot → load through evoq APIs.
+  - `adapter_swap_basic_SUITE.erl` — runs the scenario against mem-evoq (baseline) and against both adapters (cross-adapter comparison gated behind `RECKON_E2E_FULL=1` until the reckon-evoq emitter-pool bootstrap is wired).
+- Pinned `mem_evoq` to 0.1.2 (snapshot-adapter behaviour fix).
+- Pinned `reckon_evoq` 2.1.0 and `reckon_db` 2.1.1.
+
+### Changed
+
+- `project_apps` now includes `adapter_swap_torture`.
+- `ct_opts` test dir list extended.
+
 ## [0.1.0] - 2026-05-15
 
 Initial scaffold.

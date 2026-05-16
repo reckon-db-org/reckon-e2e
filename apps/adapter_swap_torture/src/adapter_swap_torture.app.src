@@ -1,0 +1,27 @@
+{application, adapter_swap_torture, [
+    {description,
+     "Behavioural-equivalence torture across event-store adapters. "
+     "Runs the same evoq-driven scenarios against mem-evoq and "
+     "reckon-evoq, then asserts structural equality of the observed "
+     "outcomes."},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib,
+        crypto,
+        mem_evoq,
+        reckon_evoq,
+        reckon_db,
+        evoq,
+        reckon_gater,
+        ra,
+        khepri
+    ]},
+    {env, []},
+    {modules, []},
+    {licenses, ["Apache-2.0"]},
+    {links, [
+        {"Codeberg", "https://codeberg.org/reckon-db-org/reckon-e2e"}
+    ]}
+]}.
