@@ -1,0 +1,22 @@
+{application, multi_node_torture, [
+    {description,
+     "Cluster-level chaos scenarios — leader kill mid-write, "
+     "partition+heal, replication lag under load. Drives chaos via "
+     "SSH+docker against the running reckon-gateway cluster."},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib,
+        crypto,
+        grpcbox,
+        reckon_e2e_grpc,
+        adapter_swap_torture
+    ]},
+    {env, []},
+    {modules, []},
+    {licenses, ["Apache-2.0"]},
+    {links, [
+        {"Codeberg", "https://codeberg.org/reckon-db-org/reckon-e2e"}
+    ]}
+]}.
