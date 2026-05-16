@@ -1,0 +1,20 @@
+{application, reckon_e2e_grpc, [
+    {description,
+     "gRPC client + facade for talking to a deployed reckon-gateway "
+     "from torture scenarios. Generated client stubs from vendored "
+     "reckon-gateway protos live under src/ here."},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib,
+        crypto,
+        grpcbox
+    ]},
+    {env, []},
+    {modules, []},
+    {licenses, ["Apache-2.0"]},
+    {links, [
+        {"Codeberg", "https://codeberg.org/reckon-db-org/reckon-e2e"}
+    ]}
+]}.

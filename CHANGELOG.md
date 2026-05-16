@@ -4,6 +4,34 @@ All notable changes to reckon-e2e will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.4.0] - 2026-05-16
+
+### Added — gRPC facade + clustered fixture (step 3)
+
+The third step of `docs/CLUSTERED_FIXTURE_DESIGN.md` lands the gRPC transport.
+
+- New umbrella app `reckon_e2e_grpc` carries the vendored reckon-gateway protos (`priv/proto/*.proto`) and the grpcbox client stubs generated from them. Generation runs as a pre-compile hook; the generated `*_pb.erl` and `*_client.erl` modules are gitignored.
+- `reckon_e2e_grpc_facade` implements `reckon_e2e_facade` against the gRPC stubs:
+  - `append/4` → `StreamService.AppendEvents`
+  - `read/5`   → `StreamService.ReadStreamForward` / `ReadStreamBackward`
+  - `save_snapshot/5` → `SnapshotService.RecordSnapshot`
+  - `load_snapshot/2` → `SnapshotService.ListSnapshots` + pick-latest
+- Wire format: `data` / `metadata` proto bytes are canonical JSON (matches what reckon-db / mem-evoq use internally). The facade encodes Erlang maps to JSON on send and decodes on receive.
+- `adapter_swap_torture:with_clustered_reckon_store/1` — opens a gRPC channel to the configured endpoint, runs the scenario, tears down. Endpoint via `RECKON_E2E_GATEWAY=host:port` env var (default `localhost:50051`).
+- New CT case `clustered_basic_scenario_matches_local` — drives the basic scenario against the deployed gateway and asserts behavioural equivalence with mem-evoq. Gated behind `RECKON_E2E_CLUSTER=1` so default runs without the lab still pass.
+
+### Added deps
+
+- `grpcbox` 0.17.1 (gRPC runtime).
+- `grpcbox_plugin` 0.9.0 (rebar3 plugin for stub generation).
+
+### Notes
+
+Sequencing left from `docs/CLUSTERED_FIXTURE_DESIGN.md`:
+- Step 4: self-hosted GitHub Actions runner on beam03 — infra, not code.
+- Step 5: `multi_node_torture` cluster-specific scenarios (leader kill, partition heal) — needs the gateway exposed AND root on the beam nodes for `podman kill` / `iptables`.
+- Step 6: baseline metrics → CI guards.
+
 ## [0.3.0] - 2026-05-16
 
 ### Added — Facade abstraction (step 2 of the clustered fixture sequencing)

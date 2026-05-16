@@ -22,6 +22,7 @@
 
 -export([with_mem_evoq_store/1,
          with_reckon_evoq_store/1,
+         with_clustered_reckon_store/1,
          compare_outcomes/2]).
 
 %%====================================================================
@@ -52,6 +53,32 @@ with_reckon_evoq_store(Scenario) when is_function(Scenario, 1) ->
     try Scenario(Driver)
     after stop_reckon_store(StoreId, DataDir)
     end.
+
+%% @doc Run Scenario(Driver) against a deployed reckon-gateway.
+%%
+%% Endpoint resolution: `RECKON_E2E_GATEWAY' env var (`host:port'),
+%% falling back to `localhost:50051'. The harness opens a gRPC
+%% channel for the duration of the scenario; the cluster itself is
+%% NOT provisioned here — it's expected to be running already (via
+%% hecate-gitops on the beam cluster, or a local podman container
+%% for dev).
+%%
+%% Each call generates a fresh store_id; the cluster routes by it
+%% and the gateway creates streams on first append.
+with_clustered_reckon_store(Scenario) when is_function(Scenario, 1) ->
+    {ok, _} = application:ensure_all_started(grpcbox),
+    {Host, Port} = resolve_gateway_endpoint(),
+    ok = reckon_e2e_grpc_facade:start_channel(Host, Port),
+    StoreId = unique_store_id("clustered"),
+    Driver = #{store_id => StoreId, facade => reckon_e2e_grpc_facade},
+    try Scenario(Driver)
+    after catch reckon_e2e_grpc_facade:stop_channel()
+    end.
+
+resolve_gateway_endpoint() ->
+    Env = os:getenv("RECKON_E2E_GATEWAY", "localhost:50051"),
+    [Host, PortStr] = string:split(Env, ":"),
+    {Host, list_to_integer(PortStr)}.
 
 %%====================================================================
 %% Outcome comparison

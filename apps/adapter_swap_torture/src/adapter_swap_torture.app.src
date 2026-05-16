@@ -15,6 +15,7 @@
         reckon_db,
         evoq,
         reckon_gater,
+        reckon_e2e_grpc,
         ra,
         khepri
     ]},

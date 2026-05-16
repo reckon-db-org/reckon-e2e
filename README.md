@@ -34,7 +34,7 @@ Each axis is its own app under `apps/`. Vertical slicing — one axis = one capa
 | Sustained throughput / tail latency | `load_torture` | 📝 scoped |
 | Key lifecycle (rotation, absence, invalidation) | `key_lifecycle_torture` | 📝 scoped |
 | Khepri multi-node partition / leader-change | `multi_node_torture` | 📝 scoped |
-| Adapter behavioural equivalence (mem-evoq vs reckon-evoq) | `adapter_swap_torture` | ✅ scenario 1 implemented |
+| Adapter behavioural equivalence (mem-evoq vs reckon-evoq vs clustered gateway) | `adapter_swap_torture` | ✅ scenario 1 (local + gRPC facades) |
 
 ## Running
 
@@ -67,6 +67,7 @@ Pinned in `rebar.config`. Bump deliberately, document in `CHANGELOG.md`.
 | `reckon_db` | 2.1.1 |
 | `evoq` | 1.15.0 |
 | `reckon_gater` | 2.1.0 |
+| `grpcbox` | 0.17.1 |
 
 ## Why mem-evoq for integrity_torture (and not reckon-db)?
 
