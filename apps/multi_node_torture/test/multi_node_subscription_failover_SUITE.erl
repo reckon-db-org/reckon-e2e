@@ -139,12 +139,33 @@ run_scenario(ChannelName, SubChannel, StreamId, SubName) ->
     PreKillCount = ask_subscriber_count(Subscriber),
     ct:pal("subscriber pre-kill received count = ~p", [PreKillCount]),
 
-    %% Phase 2: snapshot leader, kill, wait election
+    %% Phase 2: snapshot leader, kill, wait election.
+    %%
+    %% Refuse to kill the subscriber's own endpoint — that drops the
+    %% gRPC stream for HTTP/2 reasons (the TCP connection dies),
+    %% masking the question we actually want to answer (does the
+    %% SERVER-side subscription survive a leader change?). If the
+    %% leader happens to be co-located with the subscriber endpoint,
+    %% skip the test with a clear marker.
+    SubHost = erlang:get(sub_host),
     {ok, OldHost, OldLeader} = multi_node_chaos:find_leader(?STORE_ID),
-    ct:pal("phase 2: killing current leader ~p on ~s", [OldLeader, OldHost]),
-    {ok, _, _} = multi_node_chaos:kill_leader(?STORE_ID),
-    erlang:put(killed_host, OldHost),
+    case OldHost =:= SubHost of
+        true ->
+            ct:pal("SKIP: leader (~s) is co-located with subscriber endpoint",
+                   [OldHost]),
+            {skip, leader_collocated_with_subscriber};
+        false ->
+            ct:pal("phase 2: killing current leader ~p on ~s",
+                   [OldLeader, OldHost]),
+            {ok, _, _} = multi_node_chaos:kill_leader(?STORE_ID),
+            erlang:put(killed_host, OldHost),
+            run_phases_after_kill(
+                Subscriber, Writer, OldHost, OldLeader,
+                PreKillCount, KillStartedAt)
+    end.
 
+run_phases_after_kill(Subscriber, Writer, OldHost, OldLeader,
+                      PreKillCount, KillStartedAt) ->
     case multi_node_chaos:wait_for_leader_change(
              ?STORE_ID, OldLeader, ?ELECTION_TIMEOUT_MS) of
         {ok, NewLeader} ->
