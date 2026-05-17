@@ -14,6 +14,7 @@
          raft_members/1,
          find_leader/1,
          kill_leader/1,
+         kill_node/1,
          restart_node/1,
          wait_for_leader_change/3,
          partition_minority/1,
@@ -148,6 +149,18 @@ kill_leader(StoreId) ->
         {error, _} = E ->
             E
     end.
+
+%% @doc Send SIGKILL to the reckon-gateway container on a SPECIFIC
+%% host. Use this when the scenario picks its victim (e.g. discovery
+%% wants to kill a non-leader to isolate the signal from election
+%% dynamics).
+-spec kill_node(string()) -> ok.
+kill_node(Host) ->
+    Cmd = lists:flatten(io_lib:format(
+        "ssh ~s rl@~s 'docker kill reckon-gateway' 2>&1",
+        [?SSH_OPTS, Host])),
+    _ = os:cmd(Cmd),
+    ok.
 
 %% @doc Restart the reckon-gateway container on Host.
 -spec restart_node(string()) -> ok.

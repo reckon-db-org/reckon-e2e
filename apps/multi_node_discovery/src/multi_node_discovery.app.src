@@ -1,0 +1,23 @@
+{application, multi_node_discovery, [
+    {description,
+     "Cluster-topology observability scenarios — ListStores returns "
+     "all members, WatchStores snapshot matches, retire/announce "
+     "events fire on node-kill/restart, Watch stream survives a "
+     "leader change. Shares chaos primitives with multi_node_torture."},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib,
+        crypto,
+        grpcbox,
+        reckon_e2e_grpc,
+        multi_node_torture
+    ]},
+    {env, []},
+    {modules, []},
+    {licenses, ["Apache-2.0"]},
+    {links, [
+        {"Codeberg", "https://codeberg.org/reckon-db-org/reckon-e2e"}
+    ]}
+]}.
