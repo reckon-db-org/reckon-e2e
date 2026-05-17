@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+package reckon.gateway.v1;
+
+option go_package = "github.com/reckon-db-org/reckon-gateway/gen/go/gatewayv1;gatewayv1";
+
+// StoresService — store DISCOVERY, not management.
+//
+// Stores in reckon-db are ephemeral: they exist when their supervision
+// tree is running on at least one cluster node, and disappear when the
+// last running instance terminates. There is no CreateStore / DeleteStore.
+// Lifecycle is owned by deployment tooling (sys.config, hecate-gitops,
+// systemd units), the same primitive that bootstraps `default_store`.
+//
+// This service is the public surface for "what stores currently exist
+// in the cluster, and where", suitable for SDKs, TUIs, admin UIs, and
+// observability tooling.
+service StoresService {
+
+  // List all stores currently announced anywhere in the cluster.
+  // Returns one entry per (store_id, node) pair — a store running on
+  // 4 nodes appears 4 times. Client groups by store_id if it wants
+  // a single logical view.
+  rpc ListStores (ListStoresRequest) returns (ListStoresResponse);
+
+  // Get the entries for a specific store (one per node currently
+  // hosting it). Returns NOT_FOUND if no node is announcing it.
+  rpc GetStore (GetStoreRequest) returns (GetStoreResponse);
+
+  // Server-stream of cluster topology changes for stores. Emits a
+  // STORE_ANNOUNCED event for each currently-known entry (snapshot),
+  // then live STORE_ANNOUNCED / STORE_RETIRED events as stores come
+  // and go. Closes when the client disconnects.
+  rpc WatchStores (WatchStoresRequest) returns (stream StoreEvent);
+}
+
+// ──────────────────────────────────────────────
+// Messages
+// ──────────────────────────────────────────────
+
+message ListStoresRequest {}
+
+message ListStoresResponse {
+  repeated StoreInstance instances = 1;
+}
+
+message GetStoreRequest {
+  string store_id = 1;
+}
+
+message GetStoreResponse {
+  // One entry per node currently announcing this store.
+  // Empty list means no node is currently hosting it.
+  repeated StoreInstance instances = 1;
+}
+
+message WatchStoresRequest {
+  // If true, emit the current snapshot (one STORE_ANNOUNCED per
+  // currently-known instance) before going live. Default true.
+  bool include_snapshot = 1;
+}
+
+message StoreEvent {
+  StoreEventType type = 1;
+  StoreInstance instance = 2;
+  int64 event_at_us = 3;
+}
+
+enum StoreEventType {
+  STORE_EVENT_TYPE_UNSPECIFIED = 0;
+  STORE_EVENT_TYPE_ANNOUNCED = 1;  // store newly registered on a node
+  STORE_EVENT_TYPE_RETIRED   = 2;  // store unregistered (node down or
+                                   // explicit shutdown)
+}
+
+// A single (store_id, node) registration as observed by this gateway.
+message StoreInstance {
+  string store_id = 1;
+  string node = 2;             // erlang node name as a string
+  StoreMode mode = 3;
+  string data_dir = 4;
+  uint32 timeout_ms = 5;
+  int64 registered_at_us = 6;  // when this entry was first registered
+                               // in the cluster registry
+}
+
+enum StoreMode {
+  STORE_MODE_UNSPECIFIED = 0;
+  STORE_MODE_SINGLE = 1;        // single-node, no cluster
+  STORE_MODE_CLUSTER = 2;       // clustered via Raft
+}
