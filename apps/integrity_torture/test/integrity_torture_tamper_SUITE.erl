@@ -65,7 +65,7 @@ tampered_stream_caught_neighbours_clean(Config) ->
     [seed_stream(StoreId, I, ?SEED_PER_STREAM)
      || I <- lists:seq(0, ?STREAM_COUNT - 1)],
 
-    TargetStream = iolist_to_binary([<<"stream$">>,
+    TargetStream = iolist_to_binary([<<"stream-">>,
                                      integer_to_binary(?STREAM_COUNT div 2)]),
     ct:pal("Seeded ~p streams; will tamper version 3 of ~s",
            [?STREAM_COUNT, TargetStream]),
@@ -122,7 +122,7 @@ tampered_stream_caught_neighbours_clean(Config) ->
 %%====================================================================
 
 seed_stream(StoreId, Idx, N) ->
-    StreamId = iolist_to_binary([<<"stream$">>, integer_to_binary(Idx)]),
+    StreamId = iolist_to_binary([<<"stream-">>, integer_to_binary(Idx)]),
     Events = [#{event_type => <<"seed_v1">>, data => #{i => I}}
               || I <- lists:seq(1, N)],
     {ok, _} = mem_evoq_adapter:append(StoreId, StreamId, -1, Events),

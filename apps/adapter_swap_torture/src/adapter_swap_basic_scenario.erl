@@ -24,7 +24,7 @@ run(#{store_id := StoreId, facade := Facade}) ->
     %% invocation gets a fresh BEAM. `unique_integer/1' resets per
     %% VM, so we use a crypto-random nonce instead.
     StreamId = iolist_to_binary([
-        <<"swap-agg$">>,
+        <<"swapagg-">>,
         binary:encode_hex(crypto:strong_rand_bytes(8))
     ]),
 

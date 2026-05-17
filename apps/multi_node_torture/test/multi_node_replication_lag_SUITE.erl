@@ -77,7 +77,7 @@ replication_lag_under_load(_Config) ->
     erlang:put(writer_chan, WriterChan),
 
     Nonce = binary:encode_hex(crypto:strong_rand_bytes(8)),
-    StreamId = <<"replag$", Nonce/binary>>,
+    StreamId = <<"replag-", Nonce/binary>>,
     ct:pal("scenario starting — stream=~s", [StreamId]),
 
     try run_scenario(PinnedChans, WriterChan, StreamId)

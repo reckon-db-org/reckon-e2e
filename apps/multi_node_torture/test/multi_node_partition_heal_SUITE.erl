@@ -64,7 +64,7 @@ symmetric_partition_heal(_Config) ->
     erlang:put(channel, ChannelName),
 
     StreamId = iolist_to_binary([
-        <<"partition$">>, binary:encode_hex(crypto:strong_rand_bytes(8))]),
+        <<"partition-">>, binary:encode_hex(crypto:strong_rand_bytes(8))]),
     ct:pal("scenario starting — stream=~s", [StreamId]),
 
     try run_scenario(ChannelName, StreamId)

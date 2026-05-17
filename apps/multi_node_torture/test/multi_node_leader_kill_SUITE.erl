@@ -74,7 +74,7 @@ leader_kill_mid_write(_Config) ->
     process_flag(trap_exit, true),
 
     StreamId = iolist_to_binary([
-        <<"leader-kill$">>, binary:encode_hex(crypto:strong_rand_bytes(8))]),
+        <<"leaderkill-">>, binary:encode_hex(crypto:strong_rand_bytes(8))]),
 
     ct:pal("scenario starting — stream=~s", [StreamId]),
 

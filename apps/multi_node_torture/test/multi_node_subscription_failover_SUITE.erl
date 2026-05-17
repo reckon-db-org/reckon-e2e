@@ -91,8 +91,8 @@ subscription_survives_leader_change(_Config) ->
     erlang:put(channel, ChannelName),
 
     Nonce = binary:encode_hex(crypto:strong_rand_bytes(8)),
-    StreamId = <<"subfailover$", Nonce/binary>>,
-    SubName = <<"subfailover-sub$", Nonce/binary>>,
+    StreamId = <<"subfailover-", Nonce/binary>>,
+    SubName = <<"subfailoversub-", Nonce/binary>>,
     ct:pal("scenario starting — stream=~s sub=~s sub_endpoint=~s",
            [StreamId, SubName, SubEndpoint]),
 

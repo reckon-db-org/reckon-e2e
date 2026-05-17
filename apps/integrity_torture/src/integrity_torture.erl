@@ -180,7 +180,7 @@ maybe_apply(E, _, _) -> E.
 
 random_stream(StreamCount) ->
     N = rand:uniform(StreamCount) - 1,
-    iolist_to_binary([<<"stream$">>, integer_to_binary(N)]).
+    iolist_to_binary([<<"stream-">>, integer_to_binary(N)]).
 
 random_event() ->
     #{event_type => <<"torture_event_v1">>,
