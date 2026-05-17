@@ -228,17 +228,37 @@ run_phases_after_kill(Subscriber, Writer, OldHost, OldLeader,
     ?assertEqual(length(OurVersions), length(lists:usort(OurVersions)),
                  "test-stream duplicate versions received"),
 
-    %% Pre-kill count is the snapshot from before phase 2.
-    %% Post-kill = current total - the snapshot.
+    WriterCount = length(WriterSuccesses) * ?BATCH_SIZE,
     PreKillReceivedCount = PreKillCount,
     PostKillNew = length(Received) - PreKillReceivedCount,
+    Lowest = hd(OurVersions),
+    Highest = lists:last(OurVersions),
     ct:pal("pre-kill subscriber count = ~p; post-kill new = ~p; "
-           "test-stream version range = ~p..~p",
-           [PreKillReceivedCount, PostKillNew,
-            hd(OurVersions), lists:last(OurVersions)]),
+           "test-stream version range = ~p..~p; "
+           "writer successes = ~p",
+           [PreKillReceivedCount, PostKillNew, Lowest, Highest, WriterCount]),
 
-    ?assert(PreKillReceivedCount > 0,
-            "subscriber received NOTHING pre-kill — wasn't working at all"),
+    %% Strong property: every event the writer got an ack for must
+    %% reach the subscriber. Catch-up + live trigger between them
+    %% cover the full stream timeline; a gap here is a real delivery
+    %% bug. (Writer "success count" is itself a lower bound on what's
+    %% durable — we don't insist on equality, just that subscriber
+    %% saw AT LEAST that many.)
+    ?assert(length(Ours) >= WriterCount,
+            "subscriber missed events the writer successfully acked"),
+
+    %% The received versions are a prefix of the natural sequence,
+    %% i.e. 0..N-1 with N = length. Any "hole" (received version 5
+    %% but not 4) would indicate a real subscription-delivery gap,
+    %% distinct from writer-success count.
+    ?assertEqual(lists:seq(Lowest, Lowest + length(OurVersions) - 1),
+                 OurVersions,
+                 "test-stream version sequence has a gap"),
+
+    %% The point of this scenario: events from BOTH sides of the
+    %% kill reached the subscriber. We measure "post-kill new" >
+    %% 0 — if the subscription died with the killed leader, this
+    %% would be 0 even with a healthy pre-kill count.
     ?assert(PostKillNew > 0,
             "subscription DID NOT survive the leader change — "
             "no events received after the kill"),

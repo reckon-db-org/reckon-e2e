@@ -11,6 +11,7 @@
 -module(multi_node_chaos).
 
 -export([cluster_hosts/0,
+         raft_members/1,
          find_leader/1,
          kill_leader/1,
          restart_node/1,
@@ -45,6 +46,45 @@ cluster_hosts() ->
 -spec find_leader(atom()) -> {ok, string(), atom()} | {error, no_leader_found}.
 find_leader(StoreId) ->
     find_leader_among(cluster_hosts(), StoreId).
+
+%% @doc Return the actual Raft membership for StoreId — list of
+%% {Host, Node} tuples — by asking the current leader via
+%% `ra:members/1'. `cluster_hosts/0' is the configured topology
+%% (what we expect the cluster to be); this is the live membership
+%% the cluster actually agreed on. The difference matters when a
+%% node has fallen out of the Raft group — partition / failover
+%% scenarios that pick from `cluster_hosts/0' can end up choosing
+%% a non-member as their target and never recover.
+-spec raft_members(atom()) -> {ok, [{string(), atom()}]} | {error, term()}.
+raft_members(StoreId) ->
+    case find_leader(StoreId) of
+        {ok, LeaderHost, _} ->
+            Cmd = lists:flatten(io_lib:format(
+                "ssh ~s rl@~s 'docker exec reckon-gateway /app/bin/reckon_gateway "
+                "eval \"ra:members({~p, node()}).\"' 2>/dev/null",
+                [?SSH_OPTS, LeaderHost, StoreId])),
+            Output = os:cmd(Cmd),
+            Nodes = parse_member_nodes(Output),
+            HostsByNode = cluster_hosts(),
+            Members = [{H, N} || N <- Nodes,
+                                 {H, M} <- HostsByNode,
+                                 M =:= N],
+            {ok, lists:usort(Members)};
+        {error, _} = E ->
+            E
+    end.
+
+%% Extract every `reckon_gateway@...' node-name occurrence from a
+%% ra:members/1 result printed by the release's `eval' subcommand.
+parse_member_nodes(Output) ->
+    case re:run(Output,
+                "'?(reckon_gateway@[0-9.]+)'?",
+                [global, {capture, [1], list}]) of
+        {match, Matches} ->
+            [list_to_atom(N) || [N] <- Matches];
+        _ ->
+            []
+    end.
 
 find_leader_among([], _StoreId) ->
     {error, no_leader_found};

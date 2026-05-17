@@ -73,13 +73,23 @@ symmetric_partition_heal(_Config) ->
     end.
 
 run_scenario(ChannelName, StreamId) ->
-    %% Pick the minority node — anything that's NOT the current
-    %% leader, so writes survive when we cut it off.
+    %% Pick the minority node — a Raft MEMBER that's NOT the current
+    %% leader. Using `cluster_hosts/0' (the topology config) here is
+    %% wrong: if a node has fallen out of the Raft group it's still
+    %% in the topology list, but partitioning it is meaningless and
+    %% the convergence wait will never complete.
     {ok, LeaderHost, _LeaderNode} = multi_node_chaos:find_leader(?STORE_ID),
-    [{MinorityHost, _} | _] =
-        [P || {H, _} = P <- multi_node_chaos:cluster_hosts(),
-              H =/= LeaderHost],
-    ct:pal("leader=~s, will isolate minority=~s", [LeaderHost, MinorityHost]),
+    {ok, Members} = multi_node_chaos:raft_members(?STORE_ID),
+    case [P || {H, _} = P <- Members, H =/= LeaderHost] of
+        [{MinorityHost, _} | _] ->
+            ct:pal("leader=~s, will isolate minority=~s (members=~p)",
+                   [LeaderHost, MinorityHost, [H || {H, _} <- Members]]),
+            run_with_minority(ChannelName, StreamId, LeaderHost, MinorityHost);
+        [] ->
+            ct:fail({not_enough_raft_members, Members, LeaderHost})
+    end.
+
+run_with_minority(ChannelName, StreamId, LeaderHost, MinorityHost) ->
 
     %% Phase 1: steady writes before partition
     Writer = spawn_writer(ChannelName, StreamId),
