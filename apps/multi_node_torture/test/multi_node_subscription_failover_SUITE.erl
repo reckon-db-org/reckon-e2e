@@ -102,23 +102,31 @@ subscription_survives_leader_change(_Config) ->
     end.
 
 run_scenario(ChannelName, SubChannel, StreamId, SubName) ->
-    %% Open the subscription FIRST so it's running before any writes
+    %% Spin up the subscriber process FIRST, then have IT call subscribe.
+    %% grpcbox stamps `client_pid = self()' into the stream state at
+    %% subscribe time and routes incoming events to that pid. If we
+    %% subscribed here in the test process and handed the Stream to a
+    %% spawned subscriber, the data messages would land in the test
+    %% mailbox and the subscriber's `receive {data, ...}' would never
+    %% match. Subscribing from inside the consumer process keeps the
+    %% wire data and the receive site in the same mailbox.
+    Test = self(),
     SubReq = #{store_id => atom_to_binary(?STORE_ID, utf8),
                type => 'SUBSCRIPTION_TYPE_STREAM',
                selector => StreamId,
                subscription_name => SubName,
                start_from => 0,
                pool_size => 1},
-    {ok, SubStream} =
-        reckon_gateway_v_1_subscription_service_client:subscribe(
-            SubReq, #{channel => SubChannel}),
-    erlang:put(sub_stream, SubStream),
-
-    %% Subscriber accumulator process: drains the stream and records
-    %% every event it sees with a wall-clock timestamp.
-    Test = self(),
-    Subscriber = spawn_link(fun() -> subscriber_loop(Test, SubStream, []) end),
+    Subscriber = spawn_link(fun() ->
+        {ok, SubStream} =
+            reckon_gateway_v_1_subscription_service_client:subscribe(
+                SubReq, #{channel => SubChannel}),
+        subscriber_loop(Test, SubStream, [])
+    end),
     erlang:put(subscriber, Subscriber),
+    %% Give the subscriber a moment to register the subscription
+    %% before writes start.
+    timer:sleep(500),
 
     %% Writer process: same as the other scenarios
     Writer = spawn_writer(ChannelName, StreamId),
