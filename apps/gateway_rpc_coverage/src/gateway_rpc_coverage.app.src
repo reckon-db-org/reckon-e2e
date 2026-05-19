@@ -1,0 +1,21 @@
+{application, gateway_rpc_coverage, [
+    {description,
+     "Per-RPC coverage of the catalogue-mode reckon-gateway. One "
+     "assertion per (service, rpc, input class) — happy path, bad "
+     "input, and regression locks for 0.5.1 single-mode short-circuit "
+     "and 0.5.2 empty-stream-id validation."},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib,
+        grpcbox,
+        reckon_e2e_grpc
+    ]},
+    {env, []},
+    {modules, []},
+    {licenses, ["Apache-2.0"]},
+    {links, [
+        {"Codeberg", "https://codeberg.org/reckon-db-org/reckon-e2e"}
+    ]}
+]}.
