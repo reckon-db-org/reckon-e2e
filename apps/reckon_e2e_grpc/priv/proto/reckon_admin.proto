@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package reckon.gateway.v1;
 
-option go_package = "github.com/reckon-db-org/reckon-gateway/gen/go/gatewayv1;gatewayv1";
+option go_package = "codeberg.org/reckon-db-org/reckon-go/genproto/gatewayv1;gatewayv1";
 
 // AdminService provides store inspection, scavenging, and link management.
 service AdminService {
@@ -17,9 +17,6 @@ service AdminService {
 
   // Get a summary of event types and their counts.
   rpc GetEventTypeSummary(EventTypeSummaryRequest) returns (EventTypeSummaryResponse);
-
-  // List all stores registered with the gateway.
-  rpc ListStores(ListStoresRequest) returns (ListStoresResponse);
 
   // ── Scavenging ──
 
@@ -54,6 +51,17 @@ service AdminService {
 
   // Get runtime info about a link.
   rpc GetLinkInfo(GetLinkRequest) returns (LinkRuntimeInfo);
+
+  // ── Catalogue operations (catalogue-mode reckon-gateway 0.5+) ──
+
+  // Re-read the operator-curated clusters.eterm and reconcile the
+  // running cluster connectors. Returns the diff.
+  rpc ReloadCatalogue(ReloadCatalogueRequest) returns (ReloadCatalogueResponse);
+
+  // Read-only snapshot of the catalogue: per-cluster connector
+  // status, member counts, store counts, refresh ages. Cookies
+  // are NEVER returned.
+  rpc GetCatalogueStatus(GetCatalogueStatusRequest) returns (GetCatalogueStatusResponse);
 }
 
 // ──────────────────────────────────────────────
@@ -97,12 +105,6 @@ message EventTypeSummaryEntry {
 
 message EventTypeSummaryResponse {
   repeated EventTypeSummaryEntry entries = 1;
-}
-
-message ListStoresRequest {}
-
-message ListStoresResponse {
-  repeated string store_ids = 1;
 }
 
 // ──────────────────────────────────────────────
@@ -192,4 +194,62 @@ message LinkRuntimeInfo {
   string status = 2;
   uint64 events_processed = 3;
   map<string, string> details = 4;
+}
+
+// ──────────────────────────────────────────────
+// Catalogue operations (reckon-gateway 0.5+)
+// ──────────────────────────────────────────────
+
+message ReloadCatalogueRequest {}
+
+message ReloadCatalogueResponse {
+  // cluster_ids newly connected since the previous catalogue state.
+  repeated string added = 1;
+
+  // cluster_ids retired (removed from clusters.eterm).
+  repeated string removed = 2;
+
+  // cluster_ids whose config (members or cookie) changed and whose
+  // connector was therefore terminated + restarted.
+  repeated string restarted = 3;
+
+  // Populated only on configuration-load failure (malformed eterm,
+  // duplicate cluster_id, missing required field). When non-empty,
+  // the live state was NOT mutated.
+  string error = 4;
+}
+
+message GetCatalogueStatusRequest {}
+
+message GetCatalogueStatusResponse {
+  // Total distinct store_ids visible across every connected cluster.
+  int32 catalogue_size = 1;
+
+  // Process uptime in milliseconds (informational; ops dashboards).
+  int64 gateway_uptime_ms = 2;
+
+  // Per-cluster connector status.
+  repeated ClusterStatus clusters = 3;
+}
+
+message ClusterStatus {
+  // Operator-assigned label from clusters.eterm.
+  string cluster_id = 1;
+
+  // Currently-connected Erlang dist members of the cluster.
+  repeated string members = 2;
+
+  // Distinct store_ids the gateway sees from this cluster.
+  int32 store_count = 3;
+
+  // "up" | "degraded" | "unreachable" | "not_yet_connected".
+  string status = 4;
+
+  // ISO-8601 timestamp of the last successful refresh tick.
+  // Empty string when the connector has never reached the cluster.
+  string last_refresh = 5;
+
+  // Free-form recent error description. Empty when status = "up".
+  // NEVER contains the cookie value.
+  string last_error = 6;
 }
