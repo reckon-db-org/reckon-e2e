@@ -1,0 +1,179 @@
+syntax = "proto3";
+
+package reckon.gateway.v1;
+
+option go_package = "codeberg.org/reckon-db-org/reckon-go/genproto/gatewayv1;gatewayv1";
+
+import "reckon_shared.proto";
+
+// DcbService exposes the Dynamic Consistency Boundary (DCB) primitive
+// of ReckonDB to polyglot clients.
+//
+// Where the existing StreamService.AppendEvents enforces consistency
+// against a per-stream version counter (the classic event-sourcing
+// optimistic concurrency model), DCB enforces consistency against a
+// tag-filter context query: "no event matching this filter has been
+// written since I last looked".
+//
+// The pattern is the cross-cutting complement to per-aggregate
+// consistency. Use it when the invariant a write must preserve
+// crosses streams (uniqueness, allocation, rate-limit, eligibility)
+// rather than lives inside one aggregate.
+//
+// Requires backing ReckonDB cluster on reckon-db 3.1.1+
+// (reckon_gater 2.3.1+). Older backings surface UNIMPLEMENTED.
+// TagFilter.event_type_match requires reckon-db 5.2.0+.
+service DcbService {
+
+  // Conditionally append events under the DCB pseudo-stream.
+  //
+  // Server evaluates the TagFilter against the tag index. If any
+  // event matching the filter has seq strictly greater than the
+  // supplied seq_cutoff, the write is rejected with a Conflict
+  // response carrying the highest matching seq the server observed.
+  // Otherwise the events are appended atomically and Committed
+  // carries the last assigned seq.
+  //
+  // seq_cutoff is signed: -1 means "I have seen nothing yet" and
+  // ANY matching event is a conflict. A value of N (>= 0) means
+  // "I saw through seq N" and only seqs strictly above N conflict.
+  //
+  // The conditional-append is atomic across the Ra log entry: the
+  // server either commits all events or none. Partial commits do
+  // not happen.
+  rpc AppendIfNoTagMatches(AppendIfNoTagMatchesRequest)
+      returns (AppendIfNoTagMatchesResponse);
+
+  // Read events from the DCB pseudo-stream that match a TagFilter,
+  // ordered by seq ascending. Use this to populate the "context"
+  // before a Decision: the caller reads context events, computes
+  // a seq cutoff from the highest seq observed, runs domain logic
+  // on the context, then issues AppendIfNoTagMatches with the same
+  // filter and cutoff.
+  //
+  // Server-side this combines the same filter algebra used by
+  // AppendIfNoTagMatches with a forward read of the matching seqs,
+  // scoped to the DCB pseudo-stream only.
+  rpc ReadDcbContext(ReadDcbContextRequest) returns (ReadDcbContextResponse);
+}
+
+// ──────────────────────────────────────────────
+// TagFilter algebra
+// ──────────────────────────────────────────────
+
+// TagFilter is a recursive predicate over an event's tag set or type.
+//
+// Three leaf shapes and two compound shapes:
+//
+//   match_any:         event matches if it carries ANY of the listed tags
+//   match_all:         event matches if it carries ALL of the listed tags
+//   event_type_match:  event matches if its event_type equals the value
+//   conjunction:       event matches if ALL sub-filters match  (and_)
+//   disjunction:       event matches if ANY sub-filter matches (or_)
+//
+// Names avoid the `and_`/`or_` reserved-word collisions while
+// preserving the Erlang term semantics one-to-one:
+//
+//   match_any         <-> {any_of,     [Tag]}
+//   match_all         <-> {all_of,     [Tag]}
+//   event_type_match  <-> {event_type, binary()}
+//   conjunction       <-> {and_,       [TagFilter]}
+//   disjunction       <-> {or_,        [TagFilter]}
+//
+// Requires backing ReckonDB 5.2.0+ for event_type_match (the
+// [by_event_type] index was added in that release). Older backings
+// will evaluate the filter correctly only for events written after
+// the upgrade; pre-5.2.0 events have no index entry.
+message TagFilter {
+  oneof kind {
+    TagList    match_any         = 1;
+    TagList    match_all         = 2;
+    FilterList conjunction       = 3;
+    FilterList disjunction       = 4;
+    string     event_type_match  = 5;
+  }
+}
+
+message TagList {
+  repeated string tags = 1;
+}
+
+message FilterList {
+  repeated TagFilter filters = 1;
+}
+
+// ──────────────────────────────────────────────
+// AppendIfNoTagMatches
+// ──────────────────────────────────────────────
+
+message AppendIfNoTagMatchesRequest {
+  string store_id = 1;
+
+  // Consistency context query. Server rejects the write if any
+  // event matching this filter has seq > seq_cutoff.
+  TagFilter tag_filter = 2;
+
+  // Highest seq the caller observed for events matching tag_filter
+  // when it built the decision. Use -1 if the caller saw nothing.
+  //
+  // Signed (sint64 ZigZag-encoded) so the -1 sentinel is one byte.
+  sint64 seq_cutoff = 3;
+
+  // Events to append on success. Same shape as
+  // StreamService.AppendEvents.events. Events automatically carry
+  // the DCB pseudo-stream id server-side; clients do not set it.
+  repeated ProposedEvent events = 4;
+}
+
+message AppendIfNoTagMatchesResponse {
+  // Server returns one of two structured outcomes. Both are
+  // "request was evaluated successfully"; the conflict is not a
+  // protocol error. Network / server errors still come back as
+  // gRPC status (UNAVAILABLE, INTERNAL, UNIMPLEMENTED, etc.).
+  oneof result {
+    Committed committed = 1;
+    Conflict  conflict  = 2;
+  }
+}
+
+// Committed: the conditional-append succeeded.
+message Committed {
+  // Last seq assigned to the appended batch. Subsequent
+  // AppendIfNoTagMatches calls by the same caller can use this
+  // as their seq_cutoff for follow-up writes against an overlapping
+  // tag set.
+  uint64 last_seq = 1;
+}
+
+// Conflict: tag_filter matched at least one event with seq > seq_cutoff.
+message Conflict {
+  // Highest seq the server observed for events matching tag_filter.
+  // Callers retrying with a fresh context should refresh their
+  // cutoff to this value (or to a higher one obtained by re-reading
+  // via ReadDcbContext).
+  uint64 max_seq = 1;
+}
+
+// ──────────────────────────────────────────────
+// ReadDcbContext
+// ──────────────────────────────────────────────
+
+message ReadDcbContextRequest {
+  string store_id = 1;
+  TagFilter tag_filter = 2;
+
+  // Cap on returned events. Server may return fewer. A batch_size
+  // of 0 lets the server pick a sensible default.
+  uint64 batch_size = 3;
+}
+
+message ReadDcbContextResponse {
+  // Events matching tag_filter, scoped to the DCB pseudo-stream,
+  // ordered by seq ascending.
+  repeated RecordedEvent events = 1;
+
+  // Highest seq observed across the returned events. Callers should
+  // use this as seq_cutoff in a subsequent AppendIfNoTagMatches.
+  // Set to -1 (sint64) when the result set is empty.
+  sint64 max_seq = 2;
+}
