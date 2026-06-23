@@ -19,6 +19,7 @@
 %%% Gate / config:
 %%%   RECKON_E2E_GATEWAY_COVERAGE=1
 %%%   RECKON_E2E_GATEWAY=beam00.lab:50051   (default)
+%%%   RECKON_E2E_HTTP=beam00.lab:8080       (default; HTTP port for DCB/CCC endpoints)
 %%%   RECKON_E2E_STORE=parksim_entry2exit_store  (default; any
 %%%     real store_id known to the catalogue works)
 -module(gateway_rpc_coverage_SUITE).
@@ -61,11 +62,20 @@
     health_check_raft_log_consistency_single_mode/1,
     health_get_memory_level/1,
     health_get_memory_stats/1,
-    health_get_server_info/1
+    health_get_server_info/1,
+
+    %% DcbService HTTP — CCC payload endpoints (0.13.0+)
+    dcb_http_by_payload_no_match_returns_empty/1,
+    dcb_http_by_payload_missing_key_rejected/1,
+    dcb_http_by_payload_missing_value_rejected/1,
+    dcb_http_by_payload_hash_no_match_returns_empty/1,
+    dcb_http_by_payload_hash_missing_keys_rejected/1,
+    dcb_http_by_payload_hash_mismatched_lengths_rejected/1
 ]).
 
 -define(GATE_VAR, "RECKON_E2E_GATEWAY_COVERAGE").
 -define(DEFAULT_ENDPOINT, "beam00.lab:50051").
+-define(DEFAULT_HTTP, "beam00.lab:8080").
 -define(DEFAULT_STORE, <<"parksim_entry2exit_store">>).
 -define(UNKNOWN_STREAM, <<"no_such_stream_anywhere">>).
 -define(WATCH_RECV_TIMEOUT, 200).
@@ -104,14 +114,27 @@ all() ->
         health_check_raft_log_consistency_single_mode,
         health_get_memory_level,
         health_get_memory_stats,
-        health_get_server_info
+        health_get_server_info,
+
+        %% DcbService HTTP — CCC payload endpoints
+        dcb_http_by_payload_no_match_returns_empty,
+        dcb_http_by_payload_missing_key_rejected,
+        dcb_http_by_payload_missing_value_rejected,
+        dcb_http_by_payload_hash_no_match_returns_empty,
+        dcb_http_by_payload_hash_missing_keys_rejected,
+        dcb_http_by_payload_hash_mismatched_lengths_rejected
     ].
 
 init_per_suite(Config) ->
     case os:getenv(?GATE_VAR) of
         "1" ->
             {ok, _} = application:ensure_all_started(grpcbox),
-            Config;
+            {ok, _} = application:ensure_all_started(inets),
+            HttpBase = case os:getenv("RECKON_E2E_HTTP") of
+                false -> ?DEFAULT_HTTP;
+                H     -> H
+            end,
+            [{http_base, HttpBase} | Config];
         _ ->
             {skip, ?GATE_VAR " not set; set to 1 to drive a "
                              "deployed reckon-gateway"}
@@ -411,6 +434,71 @@ health_get_server_info(Cfg) ->
     ok.
 
 %%====================================================================
+%% DcbService HTTP — CCC payload endpoints (gateway 0.13.0+)
+%%====================================================================
+
+%% GET /dcb/by-payload?key=K&value=V — unknown key returns empty list
+dcb_http_by_payload_no_match_returns_empty(Cfg) ->
+    S = store(Cfg),
+    Path = ["/v1/stores/", binary_to_list(S), "/dcb/by-payload"],
+    Qs   = "?key=no_such_field&value=no_such_value&limit=10",
+    {ok, {{_, 200, _}, _, Body}} = http_get(Path, Qs, Cfg),
+    #{<<"events">> := Evs} = json:decode(Body),
+    ?assert(is_list(Evs)),
+    ok.
+
+%% GET without key param → 400
+dcb_http_by_payload_missing_key_rejected(Cfg) ->
+    S = store(Cfg),
+    Path = ["/v1/stores/", binary_to_list(S), "/dcb/by-payload"],
+    {ok, {{_, Status, _}, _, _}} = http_get(Path, "?value=x", Cfg),
+    ?assertEqual(400, Status),
+    ok.
+
+%% GET without value param → 400
+dcb_http_by_payload_missing_value_rejected(Cfg) ->
+    S = store(Cfg),
+    Path = ["/v1/stores/", binary_to_list(S), "/dcb/by-payload"],
+    {ok, {{_, Status, _}, _, _}} = http_get(Path, "?key=x", Cfg),
+    ?assertEqual(400, Status),
+    ok.
+
+%% POST /dcb/by-payload-hash — unknown keys+values returns empty list
+dcb_http_by_payload_hash_no_match_returns_empty(Cfg) ->
+    S = store(Cfg),
+    Path = ["/v1/stores/", binary_to_list(S), "/dcb/by-payload-hash"],
+    Body = json:encode(#{
+        <<"keys">>   => [<<"no_such_field">>],
+        <<"values">> => [<<"no_such_value">>],
+        <<"limit">>  => 10
+    }),
+    {ok, {{_, 200, _}, _, RespBody}} = http_post(Path, Body, Cfg),
+    #{<<"events">> := Evs} = json:decode(RespBody),
+    ?assert(is_list(Evs)),
+    ok.
+
+%% POST without keys → 400
+dcb_http_by_payload_hash_missing_keys_rejected(Cfg) ->
+    S = store(Cfg),
+    Path = ["/v1/stores/", binary_to_list(S), "/dcb/by-payload-hash"],
+    Body = json:encode(#{<<"values">> => [<<"x">>]}),
+    {ok, {{_, Status, _}, _, _}} = http_post(Path, Body, Cfg),
+    ?assertEqual(400, Status),
+    ok.
+
+%% POST with keys/values of different length → 400
+dcb_http_by_payload_hash_mismatched_lengths_rejected(Cfg) ->
+    S = store(Cfg),
+    Path = ["/v1/stores/", binary_to_list(S), "/dcb/by-payload-hash"],
+    Body = json:encode(#{
+        <<"keys">>   => [<<"a">>, <<"b">>],
+        <<"values">> => [<<"x">>]
+    }),
+    {ok, {{_, Status, _}, _, _}} = http_post(Path, Body, Cfg),
+    ?assertEqual(400, Status),
+    ok.
+
+%%====================================================================
 %% Helpers
 %%====================================================================
 
@@ -446,6 +534,17 @@ assert_not_internal({error, {<<"13">>, _}, _} = R) ->
 assert_not_internal({error, _, _}) -> ok;
 assert_not_internal(Other) ->
     ct:fail({unexpected_grpc_response_shape, Other}).
+
+http_base(Cfg) -> proplists:get_value(http_base, Cfg).
+
+http_get(PathParts, Qs, Cfg) ->
+    Url = lists:flatten(["http://", http_base(Cfg) | PathParts]) ++ Qs,
+    httpc:request(get, {Url, []}, [{timeout, 5000}], [{body_format, binary}]).
+
+http_post(PathParts, Body, Cfg) ->
+    Url = lists:flatten(["http://", http_base(Cfg) | PathParts]),
+    httpc:request(post, {Url, [], "application/json", Body},
+                  [{timeout, 5000}], [{body_format, binary}]).
 
 drain_snapshot(Stream, BudgetMs) ->
     Deadline = erlang:monotonic_time(millisecond) + BudgetMs,

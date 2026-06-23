@@ -4,6 +4,35 @@ All notable changes to reckon-e2e will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.6.0] - 2026-06-23
+
+### Added — CCC payload endpoint coverage in gateway_rpc_coverage_SUITE
+
+Six new Common Test cases in `gateway_rpc_coverage_SUITE`:
+
+- `dcb_http_by_payload_no_match_returns_empty` — GET `/dcb/by-payload` with
+  an unknown key/value returns 200 + `{"events": []}`.
+- `dcb_http_by_payload_missing_key_rejected` — GET without `key` param → 400.
+- `dcb_http_by_payload_missing_value_rejected` — GET without `value` param → 400.
+- `dcb_http_by_payload_hash_no_match_returns_empty` — POST `/dcb/by-payload-hash`
+  with unknown keys/values returns 200 + `{"events": []}`.
+- `dcb_http_by_payload_hash_missing_keys_rejected` — POST without `keys` → 400.
+- `dcb_http_by_payload_hash_mismatched_lengths_rejected` — POST with unequal
+  `keys`/`values` arrays → 400.
+
+HTTP tests use `httpc` (OTP `inets`). New env var `RECKON_E2E_HTTP` sets the
+gateway HTTP endpoint (default `beam00.lab:8080`).
+
+### Changed — dep floors bumped to CCC-capable versions
+
+| Dep | Old | New |
+|-----|-----|-----|
+| `reckon_db` | `~> 5.2` | `~> 5.4` |
+| `reckon_gater` | `~> 3.4` | `~> 3.6` |
+
+`reckon_db 5.4.0` introduced `ccc_filter` + `ccc_paths`; `reckon_gater
+3.6.0` renamed the payload-read API to `ccc_read_by_payload*`.
+
 ## [0.5.0] - 2026-06-22
 
 ### Changed — stack bump to current library versions
