@@ -4,6 +4,18 @@ All notable changes to reckon-e2e will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.7.0] - 2026-06-23
+
+### Added — gRPC CCC payload RPC coverage in gateway_rpc_coverage_SUITE
+
+Four new CT cases covering the `CccReadByPayload` and `CccReadByPayloadHash`
+gRPC RPCs added to `DcbService` in reckon-gateway 0.14.0:
+
+- `dcb_grpc_ccc_read_by_payload_no_match_returns_empty` — unknown key returns ok + empty list
+- `dcb_grpc_ccc_read_by_payload_empty_key_rejected` — empty key returns non-INTERNAL
+- `dcb_grpc_ccc_read_by_payload_hash_no_match_returns_empty` — unknown keys return ok + empty list
+- `dcb_grpc_ccc_read_by_payload_hash_mismatched_lengths_rejected` — length mismatch returns non-INTERNAL
+
 ## [0.6.0] - 2026-06-23
 
 ### Added — CCC payload endpoint coverage in gateway_rpc_coverage_SUITE

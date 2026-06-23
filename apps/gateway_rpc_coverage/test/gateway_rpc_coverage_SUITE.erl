@@ -64,6 +64,12 @@
     health_get_memory_stats/1,
     health_get_server_info/1,
 
+    %% DcbService gRPC — CCC payload RPCs (0.14.0+)
+    dcb_grpc_ccc_read_by_payload_no_match_returns_empty/1,
+    dcb_grpc_ccc_read_by_payload_empty_key_rejected/1,
+    dcb_grpc_ccc_read_by_payload_hash_no_match_returns_empty/1,
+    dcb_grpc_ccc_read_by_payload_hash_mismatched_lengths_rejected/1,
+
     %% DcbService HTTP — CCC payload endpoints (0.13.0+)
     dcb_http_by_payload_no_match_returns_empty/1,
     dcb_http_by_payload_missing_key_rejected/1,
@@ -116,7 +122,13 @@ all() ->
         health_get_memory_stats,
         health_get_server_info,
 
-        %% DcbService HTTP — CCC payload endpoints
+            %% DcbService gRPC — CCC payload RPCs (0.14.0+)
+        dcb_grpc_ccc_read_by_payload_no_match_returns_empty,
+        dcb_grpc_ccc_read_by_payload_empty_key_rejected,
+        dcb_grpc_ccc_read_by_payload_hash_no_match_returns_empty,
+        dcb_grpc_ccc_read_by_payload_hash_mismatched_lengths_rejected,
+
+        %% DcbService HTTP — CCC payload endpoints (0.13.0+)
         dcb_http_by_payload_no_match_returns_empty,
         dcb_http_by_payload_missing_key_rejected,
         dcb_http_by_payload_missing_value_rejected,
@@ -431,6 +443,53 @@ health_get_server_info(Cfg) ->
                         #{store_id => S}, #{channel => Ch}),
     ?assertMatch(#{api_compatibility_version := <<_/binary>>}, Info),
     ?assertMatch(#{reckon_gateway_version := <<_/binary>>}, Info),
+    ok.
+
+%%====================================================================
+%% DcbService gRPC — CCC payload RPCs (gateway 0.14.0+)
+%%====================================================================
+
+%% CccReadByPayload with an unknown key returns ok with empty events list
+dcb_grpc_ccc_read_by_payload_no_match_returns_empty(Cfg) ->
+    Ch = channel(Cfg), S = store(Cfg),
+    Req = #{store_id => S, key => <<"no_such_field">>,
+            value => <<"no_such_value">>, batch_size => 10},
+    {ok, Resp, _} = reckon_gateway_v_1_dcb_service_client:ccc_read_by_payload(
+                        Req, #{channel => Ch}),
+    ?assertMatch(#{events := []}, Resp),
+    ok.
+
+%% CccReadByPayload with an empty key returns INVALID_ARGUMENT (status 3)
+dcb_grpc_ccc_read_by_payload_empty_key_rejected(Cfg) ->
+    Ch = channel(Cfg), S = store(Cfg),
+    Req = #{store_id => S, key => <<>>, value => <<"x">>, batch_size => 10},
+    Result = reckon_gateway_v_1_dcb_service_client:ccc_read_by_payload(
+                 Req, #{channel => Ch}),
+    assert_not_internal(Result),
+    ok.
+
+%% CccReadByPayloadHash with unknown keys returns ok with empty events list
+dcb_grpc_ccc_read_by_payload_hash_no_match_returns_empty(Cfg) ->
+    Ch = channel(Cfg), S = store(Cfg),
+    Req = #{store_id => S,
+            keys   => [<<"no_such_field">>],
+            values => [<<"no_such_value">>],
+            batch_size => 10},
+    {ok, Resp, _} = reckon_gateway_v_1_dcb_service_client:ccc_read_by_payload_hash(
+                        Req, #{channel => Ch}),
+    ?assertMatch(#{events := []}, Resp),
+    ok.
+
+%% CccReadByPayloadHash with mismatched keys/values lengths returns non-INTERNAL
+dcb_grpc_ccc_read_by_payload_hash_mismatched_lengths_rejected(Cfg) ->
+    Ch = channel(Cfg), S = store(Cfg),
+    Req = #{store_id => S,
+            keys   => [<<"a">>, <<"b">>],
+            values => [<<"x">>],
+            batch_size => 10},
+    Result = reckon_gateway_v_1_dcb_service_client:ccc_read_by_payload_hash(
+                 Req, #{channel => Ch}),
+    assert_not_internal(Result),
     ok.
 
 %%====================================================================
