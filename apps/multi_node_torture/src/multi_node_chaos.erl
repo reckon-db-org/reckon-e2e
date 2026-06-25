@@ -90,15 +90,17 @@ parse_member_nodes(Output) ->
 find_leader_among([], _StoreId) ->
     {error, no_leader_found};
 find_leader_among([{Host, _Node} | Rest], StoreId) ->
-    case query_leader(Host, StoreId) of
-        {ok, LeaderNode} ->
-            case node_to_host(LeaderNode) of
-                {ok, LeaderHost} -> {ok, LeaderHost, LeaderNode};
-                error           -> find_leader_among(Rest, StoreId)
-            end;
-        error ->
-            find_leader_among(Rest, StoreId)
-    end.
+    find_leader_resolve(query_leader(Host, StoreId), Rest, StoreId).
+
+find_leader_resolve({ok, LeaderNode}, Rest, StoreId) ->
+    find_leader_host(node_to_host(LeaderNode), LeaderNode, Rest, StoreId);
+find_leader_resolve(error, Rest, StoreId) ->
+    find_leader_among(Rest, StoreId).
+
+find_leader_host({ok, LeaderHost}, LeaderNode, _Rest, _StoreId) ->
+    {ok, LeaderHost, LeaderNode};
+find_leader_host(error, _LeaderNode, Rest, StoreId) ->
+    find_leader_among(Rest, StoreId).
 
 query_leader(Host, StoreId) ->
     %% Eval `ra_leaderboard:lookup_leader(StoreId)' inside the
@@ -188,17 +190,18 @@ wait_for_leader_change(StoreId, OldNode, DeadlineMs) ->
     wait_loop(StoreId, OldNode, Deadline).
 
 wait_loop(StoreId, OldNode, Deadline) ->
-    case find_leader(StoreId) of
-        {ok, _Host, NewNode} when NewNode =/= OldNode ->
-            {ok, NewNode};
-        _ ->
-            case erlang:monotonic_time(millisecond) >= Deadline of
-                true  -> timeout;
-                false ->
-                    timer:sleep(500),
-                    wait_loop(StoreId, OldNode, Deadline)
-            end
-    end.
+    wait_leader(find_leader(StoreId), StoreId, OldNode, Deadline).
+
+wait_leader({ok, _Host, NewNode}, _StoreId, OldNode, _Deadline) when NewNode =/= OldNode ->
+    {ok, NewNode};
+wait_leader(_, StoreId, OldNode, Deadline) ->
+    wait_deadline(erlang:monotonic_time(millisecond) >= Deadline, StoreId, OldNode, Deadline).
+
+wait_deadline(true, _StoreId, _OldNode, _Deadline) ->
+    timeout;
+wait_deadline(false, StoreId, OldNode, Deadline) ->
+    timer:sleep(500),
+    wait_loop(StoreId, OldNode, Deadline).
 
 %%====================================================================
 %% Network partition (iptables)
@@ -218,26 +221,27 @@ wait_loop(StoreId, OldNode, Deadline) ->
     {ok, string(), [string()]} | {error, term()}.
 partition_minority(MinorityHost) ->
     All = cluster_hosts(),
-    case lists:keyfind(MinorityHost, 1, All) of
-        false -> {error, {unknown_host, MinorityHost}};
-        _ ->
-            OtherHosts = [H || {H, _} <- All, H =/= MinorityHost],
-            MinorityIp = host_ip(MinorityHost),
-            OtherIps = [host_ip(H) || H <- OtherHosts],
-            %% Drop on minority side: block to/from each OtherIp.
-            lists:foreach(
-                fun(OtherIp) ->
-                    drop_rule(MinorityHost, "OUTPUT", "-d", OtherIp),
-                    drop_rule(MinorityHost, "INPUT",  "-s", OtherIp)
-                end, OtherIps),
-            %% Drop on each majority side: block to/from MinorityIp.
-            lists:foreach(
-                fun(OtherHost) ->
-                    drop_rule(OtherHost, "OUTPUT", "-d", MinorityIp),
-                    drop_rule(OtherHost, "INPUT",  "-s", MinorityIp)
-                end, OtherHosts),
-            {ok, MinorityHost, OtherHosts}
-    end.
+    partition_run(lists:keyfind(MinorityHost, 1, All), MinorityHost, All).
+
+partition_run(false, MinorityHost, _All) ->
+    {error, {unknown_host, MinorityHost}};
+partition_run(_, MinorityHost, All) ->
+    OtherHosts = [H || {H, _} <- All, H =/= MinorityHost],
+    MinorityIp = host_ip(MinorityHost),
+    OtherIps = [host_ip(H) || H <- OtherHosts],
+    %% Drop on minority side: block to/from each OtherIp.
+    lists:foreach(fun(OtherIp) -> drop_minority(MinorityHost, OtherIp) end, OtherIps),
+    %% Drop on each majority side: block to/from MinorityIp.
+    lists:foreach(fun(OtherHost) -> drop_majority(OtherHost, MinorityIp) end, OtherHosts),
+    {ok, MinorityHost, OtherHosts}.
+
+drop_minority(MinorityHost, OtherIp) ->
+    drop_rule(MinorityHost, "OUTPUT", "-d", OtherIp),
+    drop_rule(MinorityHost, "INPUT",  "-s", OtherIp).
+
+drop_majority(OtherHost, MinorityIp) ->
+    drop_rule(OtherHost, "OUTPUT", "-d", MinorityIp),
+    drop_rule(OtherHost, "INPUT",  "-s", MinorityIp).
 
 %% @doc Remove every iptables rule tagged with our comment, on every
 %% cluster host. Idempotent — re-running has no effect.
