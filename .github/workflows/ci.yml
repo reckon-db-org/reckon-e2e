@@ -2,9 +2,7 @@ name: ci
 
 # reckon-e2e CI. Runs the torture suites on push to main and on PRs.
 #
-# Codeberg → GitHub mirrors every 8h; GitHub Actions is where these
-# runners actually live. See workspace CLAUDE.md for the hosting
-# rationale.
+# Runs on GitHub Actions (GitHub is canonical since 2026-07-26).
 
 on:
   push:

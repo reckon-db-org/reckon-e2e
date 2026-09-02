@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package reckon.gateway.v1;
 
-option go_package = "codeberg.org/reckon-db-org/reckon-go/genproto/gatewayv1;gatewayv1";
+option go_package = "github.com/reckon-db-org/reckon-go/genproto/gatewayv1;gatewayv1";
 
 // AdminService provides store inspection, scavenging, and link management.
 service AdminService {
