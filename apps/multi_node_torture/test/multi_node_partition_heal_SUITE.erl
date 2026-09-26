@@ -63,8 +63,7 @@ symmetric_partition_heal(_Config) ->
     process_flag(trap_exit, true),
     erlang:put(channel, ChannelName),
 
-    StreamId = iolist_to_binary([
-        <<"partition-">>, binary:encode_hex(crypto:strong_rand_bytes(8))]),
+    StreamId = reckon_gater_stream_id:new(<<"partition">>),
     ct:pal("scenario starting — stream=~s", [StreamId]),
 
     try run_scenario(ChannelName, StreamId)

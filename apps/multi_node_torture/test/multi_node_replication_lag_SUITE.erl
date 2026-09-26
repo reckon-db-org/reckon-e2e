@@ -76,8 +76,7 @@ replication_lag_under_load(_Config) ->
     {ok, _} = grpcbox_channel:start_link(WriterChan, WriterEndpoints, #{}),
     erlang:put(writer_chan, WriterChan),
 
-    Nonce = binary:encode_hex(crypto:strong_rand_bytes(8)),
-    StreamId = <<"replag-", Nonce/binary>>,
+    StreamId = reckon_gater_stream_id:new(<<"replag">>),
     ct:pal("scenario starting — stream=~s", [StreamId]),
 
     try run_scenario(PinnedChans, WriterChan, StreamId)

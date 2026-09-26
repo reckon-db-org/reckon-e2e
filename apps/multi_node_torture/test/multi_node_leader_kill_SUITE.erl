@@ -73,8 +73,7 @@ leader_kill_mid_write(_Config) ->
     {ok, _} = grpcbox_channel:start_link(ChannelName, Endpoints, #{}),
     process_flag(trap_exit, true),
 
-    StreamId = iolist_to_binary([
-        <<"leaderkill-">>, binary:encode_hex(crypto:strong_rand_bytes(8))]),
+    StreamId = reckon_gater_stream_id:new(<<"leaderkill">>),
 
     ct:pal("scenario starting — stream=~s", [StreamId]),
 

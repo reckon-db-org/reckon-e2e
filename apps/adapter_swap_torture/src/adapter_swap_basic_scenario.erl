@@ -22,11 +22,10 @@ run(#{store_id := StoreId, facade := Facade}) ->
     %% Stream-id unique per run — cross-VM uniqueness needed because
     %% the clustered store is long-running while each `rebar3 ct'
     %% invocation gets a fresh BEAM. `unique_integer/1' resets per
-    %% VM, so we use a crypto-random nonce instead.
-    StreamId = iolist_to_binary([
-        <<"swapagg-">>,
-        binary:encode_hex(crypto:strong_rand_bytes(8))
-    ]),
+    %% VM, so the id comes from reckon_gater_stream_id:new/1 (a UUIDv7
+    %% suffix), which is also the shape reckon-db accepts: lowercase prefix,
+    %% 32 lowercase hex characters.
+    StreamId = reckon_gater_stream_id:new(<<"swapagg">>),
 
     {ok, AppendedVersion} = Facade:append(StoreId, StreamId, -1,
         [#{event_type => <<"swap_e_v1">>, data => #{n => 1}},
