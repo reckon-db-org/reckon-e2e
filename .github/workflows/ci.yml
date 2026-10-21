@@ -38,6 +38,10 @@ jobs:
       - name: Compile
         run: rebar3 compile
 
+      # The structural lint floor (macula-codebase-checks#9).
+      - name: Lint
+        run: rebar3 lint
+
       - name: Run torture suites
         run: rebar3 ct
 
