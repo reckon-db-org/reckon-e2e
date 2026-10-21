@@ -23,11 +23,12 @@ from 2.9.0, which is what the fix is for. See reckon-db-org/evoq#22.
 
 ### Fixed: the umbrella did not build on OTP 27+
 
-`warnings_as_errors` plus the deprecated `catch` expression in 25 places
-across the torture suites meant `rebar3 compile` failed before any test ran.
-Every one is `try ... catch` now - the three in application source and all
-twenty-two in the suites - so there is no suppression left in `erl_opts` for
-our own code. `mem_evoq`, `chatterbox` and `grpcbox` keep theirs as
+`warnings_as_errors` plus the deprecated `catch` expression in twenty-four
+places in the torture suites meant `rebar3 compile` failed before any test ran
+on OTP 29, where the deprecation warns by default (CI on OTP 28.4.3 was still
+green, and the three `try ... catch` sites in application source were never
+the problem). Every one is `try ... catch` now, so there is no suppression
+left in `erl_opts` for our own code. `mem_evoq`, `chatterbox` and `grpcbox` keep theirs as
 overrides: they are dependencies, not ours to change here. `_checkouts/` is
 gitignored: it is the local-development mechanism the deps' own READMEs
 describe, and it must never be committed.

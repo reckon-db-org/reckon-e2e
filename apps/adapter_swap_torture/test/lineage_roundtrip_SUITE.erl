@@ -137,12 +137,13 @@ an_applications_own_metadata_key_is_stored_as_written(Config) ->
                                                       <<"usr-1">>),
     ?assertEqual(<<"thing_happened_v1">>, event_type([Found])),
 
-    %% Written as an atom, stored under the atom, not matched by the binary
-    %% key. That is the documented trade-off: only the keys evoq defines are
-    %% translated, because only they have to match the store's index.
+    %% A value nobody wrote finds nothing, which is also what a query for the
+    %% wrong key spelling looks like: only the three reserved lineage keys are
+    %% translated, so an application key written as an atom is stored under
+    %% the atom and a query for it answers {ok, []}.
     ?assertMatch({ok, []},
                  reckon_gater_api:read_by_metadata(StoreId, <<"user_id">>,
-                                                   <<"usr-1-atom">>)).
+                                                   <<"no-such-value">>)).
 
 %% The query is a query: a value nobody wrote finds nothing.
 an_event_with_no_lineage_is_not_found_by_one(Config) ->
