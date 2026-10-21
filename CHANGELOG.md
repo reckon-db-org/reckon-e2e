@@ -25,13 +25,12 @@ from 2.9.0, which is what the fix is for. See reckon-db-org/evoq#22.
 
 `warnings_as_errors` plus the deprecated `catch` expression in 25 places
 across the torture suites meant `rebar3 compile` failed before any test ran.
-The three call sites in application source are `try ... catch` now; the
-suite sweep is deferred behind `nowarn_deprecated_catch` in `erl_opts`, with
-a comment saying so, so the repo builds while it waits. `mem_evoq`,
-`chatterbox` and `grpcbox` get the same suppression as overrides - they are
-dependencies, not ours to change here. `_checkouts/` is gitignored: it is
-the local-development mechanism the deps' own READMEs describe, and it must
-never be committed.
+Every one is `try ... catch` now - the three in application source and all
+twenty-two in the suites - so there is no suppression left in `erl_opts` for
+our own code. `mem_evoq`, `chatterbox` and `grpcbox` keep theirs as
+overrides: they are dependencies, not ours to change here. `_checkouts/` is
+gitignored: it is the local-development mechanism the deps' own READMEs
+describe, and it must never be committed.
 
 ## [0.7.0] - 2026-06-23
 

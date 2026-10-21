@@ -162,7 +162,7 @@ init_per_testcase(_, Config) ->
 end_per_testcase(_, Config) ->
     case proplists:get_value(channel, Config) of
         undefined -> ok;
-        Ch        -> catch grpcbox_channel:stop(Ch)
+        Ch        -> try grpcbox_channel:stop(Ch) catch _:_ -> ok end
     end,
     ok.
 

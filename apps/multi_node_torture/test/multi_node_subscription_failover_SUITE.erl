@@ -355,7 +355,7 @@ cleanup() ->
         _ ->
             case erlang:get(writer) of
                 W when is_pid(W) ->
-                    (catch (W ! stop)),
+                    try W ! stop catch _:_ -> ok end,
                     receive {writer_done, _, _, _} -> ok after 2000 -> ok end;
                 _ -> ok
             end
@@ -364,7 +364,7 @@ cleanup() ->
         undefined -> ok;
         Host ->
             ct:pal("cleanup: restarting killed node ~s", [Host]),
-            (catch multi_node_chaos:restart_node(Host))
+            try multi_node_chaos:restart_node(Host) catch _:_ -> ok end
     end,
     case erlang:get(subscriber) of
         S when is_pid(S) -> exit(S, kill);
@@ -372,11 +372,11 @@ cleanup() ->
     end,
     case erlang:get(channel) of
         undefined -> ok;
-        ChannelName -> catch grpcbox_channel:stop(ChannelName)
+        ChannelName -> try grpcbox_channel:stop(ChannelName) catch _:_ -> ok end
     end,
     case erlang:get(sub_channel) of
         undefined -> ok;
-        SubChannel -> catch grpcbox_channel:stop(SubChannel)
+        SubChannel -> try grpcbox_channel:stop(SubChannel) catch _:_ -> ok end
     end,
     ok.
 
@@ -400,8 +400,11 @@ writer_loop(Parent, Channel, StreamId, Attempted, Successes, Errors) ->
                 stream_id => StreamId,
                 expected_version => -2,
                 events => Batch},
-        case catch reckon_gateway_v_1_stream_service_client:append_events(
-                       Req, #{channel => Channel}) of
+        Result = try reckon_gateway_v_1_stream_service_client:append_events(
+                       Req, #{channel => Channel})
+                 catch Class:Reason -> {Class, Reason}
+                 end,
+        case Result of
             {ok, #{version := V}, _} ->
                 writer_loop(Parent, Channel, StreamId,
                             Attempted + ?BATCH_SIZE,

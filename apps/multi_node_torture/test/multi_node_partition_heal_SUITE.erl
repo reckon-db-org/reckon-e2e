@@ -48,7 +48,7 @@ init_per_testcase(symmetric_partition_heal, Config) ->
 
 end_per_testcase(_, _Config) ->
     %% Idempotent — even if the body cleaned up already, this is safe.
-    catch multi_node_chaos:heal_partition(),
+    try multi_node_chaos:heal_partition() catch _:_ -> ok end,
     ok.
 
 %%====================================================================
@@ -183,7 +183,7 @@ cleanup() ->
         _    ->
             case erlang:get(writer) of
                 Pid when is_pid(Pid) ->
-                    catch (Pid ! stop),
+                    try Pid ! stop catch _:_ -> ok end,
                     receive {writer_done, _, _, _} -> ok after 2000 -> ok end;
                 _ -> ok
             end
@@ -191,16 +191,16 @@ cleanup() ->
     case erlang:get(partitioned) of
         true ->
             ct:pal("cleanup: healing partition"),
-            catch multi_node_chaos:heal_partition();
+            try multi_node_chaos:heal_partition() catch _:_ -> ok end;
         _ -> ok
     end,
     case erlang:get(channel) of
         undefined -> ok;
-        ChannelName -> catch grpcbox_channel:stop(ChannelName)
+        ChannelName -> try grpcbox_channel:stop(ChannelName) catch _:_ -> ok end
     end,
     case erlang:get(pinned_channels) of
         undefined -> ok;
-        Pins -> [catch grpcbox_channel:stop(P) || P <- Pins]
+        Pins -> [try grpcbox_channel:stop(P) catch _:_ -> ok end || P <- Pins]
     end,
     ok.
 
@@ -272,8 +272,11 @@ writer_loop(Parent, Channel, StreamId, Attempted, Successes, Errors) ->
                 stream_id => StreamId,
                 expected_version => -2,
                 events => Batch},
-        case catch reckon_gateway_v_1_stream_service_client:append_events(
-                       Req, #{channel => Channel}) of
+        Result = try reckon_gateway_v_1_stream_service_client:append_events(
+                       Req, #{channel => Channel})
+                 catch Class:Reason -> {Class, Reason}
+                 end,
+        case Result of
             {ok, #{version := V}, _} ->
                 writer_loop(Parent, Channel, StreamId,
                             Attempted + ?BATCH_SIZE,

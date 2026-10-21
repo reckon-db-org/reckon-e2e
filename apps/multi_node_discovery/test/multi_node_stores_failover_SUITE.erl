@@ -52,7 +52,7 @@ init_per_testcase(_, Config) ->
 end_per_testcase(_, _) ->
     case erlang:get(killed_host) of
         undefined -> ok;
-        Host -> catch multi_node_chaos:restart_node(Host)
+        Host -> try multi_node_chaos:restart_node(Host) catch _:_ -> ok end
     end,
     ok.
 

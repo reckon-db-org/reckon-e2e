@@ -50,7 +50,7 @@ init_per_testcase(_TC, Config) ->
     [{store_id, StoreId}, {key, Key} | Config].
 
 end_per_testcase(_TC, Config) ->
-    catch mem_evoq:stop_store(?config(store_id, Config)),
+    try mem_evoq:stop_store(?config(store_id, Config)) catch _:_ -> ok end,
     ok.
 
 %%====================================================================

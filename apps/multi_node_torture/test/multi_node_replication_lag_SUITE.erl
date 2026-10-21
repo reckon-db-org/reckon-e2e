@@ -253,18 +253,18 @@ cleanup() ->
         _ ->
             case erlang:get(writer) of
                 W when is_pid(W) ->
-                    catch (W ! stop),
+                    try W ! stop catch _:_ -> ok end,
                     receive {writer_done, _, _, _} -> ok after 2000 -> ok end;
                 _ -> ok
             end
     end,
     case erlang:get(writer_chan) of
         undefined -> ok;
-        WC -> catch grpcbox_channel:stop(WC)
+        WC -> try grpcbox_channel:stop(WC) catch _:_ -> ok end
     end,
     case erlang:get(pinned_chans) of
         undefined -> ok;
-        Pins -> [catch grpcbox_channel:stop(P) || P <- Pins]
+        Pins -> [try grpcbox_channel:stop(P) catch _:_ -> ok end || P <- Pins]
     end,
     ok.
 
@@ -323,8 +323,11 @@ writer_loop(Parent, Channel, StreamId, Attempted, Successes, Errors) ->
                     stream_id => StreamId,
                     expected_version => -2,
                     events => Batch},
-            case catch reckon_gateway_v_1_stream_service_client:append_events(
-                           Req, #{channel => Channel}) of
+            Result = try reckon_gateway_v_1_stream_service_client:append_events(
+                           Req, #{channel => Channel})
+                     catch Class:Reason -> {Class, Reason}
+                     end,
+            case Result of
                 {ok, #{version := V}, _} ->
                     writer_loop(Parent, Channel, StreamId,
                                 Attempted + ?BATCH_SIZE,

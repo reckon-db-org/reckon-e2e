@@ -158,7 +158,7 @@ cleanup() ->
         _    ->
             case erlang:get(writer) of
                 Pid when is_pid(Pid) ->
-                    (catch (Pid ! stop)),
+                    try Pid ! stop catch _:_ -> ok end,
                     receive {writer_done, _, _, _} -> ok after 2000 -> ok end;
                 _ -> ok
             end
@@ -171,7 +171,7 @@ cleanup() ->
     end,
     case erlang:get(channel) of
         undefined -> ok;
-        ChannelName -> catch grpcbox_channel:stop(ChannelName)
+        ChannelName -> try grpcbox_channel:stop(ChannelName) catch _:_ -> ok end
     end,
     ok.
 
@@ -193,8 +193,11 @@ writer_loop(Parent, Channel, StreamId, Attempted, Successes, Errors) ->
                 stream_id => StreamId,
                 expected_version => -2,    % ?ANY_VERSION
                 events => Batch},
-        case catch reckon_gateway_v_1_stream_service_client:append_events(
-                       Req, #{channel => Channel}) of
+        Result = try reckon_gateway_v_1_stream_service_client:append_events(
+                       Req, #{channel => Channel})
+                 catch Class:Reason -> {Class, Reason}
+                 end,
+        case Result of
             {ok, #{version := V}, _} ->
                 writer_loop(Parent, Channel, StreamId,
                             Attempted + ?BATCH_SIZE,
