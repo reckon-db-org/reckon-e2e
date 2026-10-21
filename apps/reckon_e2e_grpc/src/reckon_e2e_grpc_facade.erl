@@ -40,7 +40,7 @@ stop_channel() ->
 stop_named(undefined) ->
     ok;
 stop_named(Name) ->
-    catch grpcbox_channel:stop(Name),
+    (try grpcbox_channel:stop(Name) catch _:_ -> ok end),
     application:unset_env(reckon_e2e_grpc, channel),
     ok.
 

@@ -39,7 +39,7 @@ with_mem_evoq_store(Scenario) when is_function(Scenario, 1) ->
     {ok, _} = mem_evoq:start_store(StoreId),
     Driver = #{store_id => StoreId, facade => reckon_e2e_local_facade},
     try Scenario(Driver)
-    after catch mem_evoq:stop_store(StoreId)
+    after ignore_errors(fun() -> mem_evoq:stop_store(StoreId) end)
     end.
 
 %% @doc Run Scenario(Driver) with reckon_evoq_adapter plumbed into
@@ -85,7 +85,7 @@ with_clustered_reckon_store(Scenario) when is_function(Scenario, 1) ->
     Driver = #{store_id => default_store, facade => reckon_e2e_grpc_facade},
     try Scenario(Driver)
     after
-        catch reckon_e2e_grpc_facade:stop_channel(),
+        ignore_errors(fun() -> reckon_e2e_grpc_facade:stop_channel() end),
         process_flag(trap_exit, OldTrap)
     end.
 
@@ -183,9 +183,14 @@ start_reckon_store() ->
     {StoreId, DataDir}.
 
 stop_reckon_store(StoreId, DataDir) ->
-    catch reckon_db_sup:stop_store(StoreId),
+    ignore_errors(fun() -> reckon_db_sup:stop_store(StoreId) end),
     os:cmd("rm -rf " ++ DataDir),
     ok.
+
+%% @private Run a cleanup step whose failure must not mask the scenario's
+%% own result. `try ... catch` rather than the deprecated `catch' expression.
+ignore_errors(Fun) ->
+    try Fun() catch _:_ -> ok end.
 
 unique_store_id(Prefix) ->
     list_to_atom(

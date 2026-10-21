@@ -4,6 +4,35 @@ All notable changes to reckon-e2e will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Added: the lineage round trip no repository could test alone
+
+`adapter_swap_torture/test/lineage_roundtrip_SUITE.erl` writes an event
+through `reckon_evoq_adapter` and finds it again through the store's own
+`read_by_metadata/3` - adapter -> gater -> Khepri -> `{meta, Key}` index, in
+one VM.
+
+Every piece was tested in isolation and the chain was not: reckon-evoq
+proved it binary-keys metadata (against a mocked gateway) and reckon-db
+proved `read_by_metadata` matches binary keys (against events it wrote
+itself). Neither could see the other, so an adapter writing atom keys into
+an index built for binary ones passed both suites and made every lineage
+query answer nothing. This suite is red against reckon-evoq 2.8.0 and green
+from 2.9.0, which is what the fix is for. See reckon-db-org/evoq#22.
+
+### Fixed: the umbrella did not build on OTP 27+
+
+`warnings_as_errors` plus the deprecated `catch` expression in 25 places
+across the torture suites meant `rebar3 compile` failed before any test ran.
+The three call sites in application source are `try ... catch` now; the
+suite sweep is deferred behind `nowarn_deprecated_catch` in `erl_opts`, with
+a comment saying so, so the repo builds while it waits. `mem_evoq`,
+`chatterbox` and `grpcbox` get the same suppression as overrides - they are
+dependencies, not ours to change here. `_checkouts/` is gitignored: it is
+the local-development mechanism the deps' own READMEs describe, and it must
+never be committed.
+
 ## [0.7.0] - 2026-06-23
 
 ### Added — gRPC CCC payload RPC coverage in gateway_rpc_coverage_SUITE

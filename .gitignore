@@ -23,3 +23,4 @@ logs/
 # grpcbox_plugin pre-compile hook from priv/proto/*.proto.
 apps/reckon_e2e_grpc/src/reckon_*_pb.erl
 apps/reckon_e2e_grpc/src/reckon_gateway_v_1_*_client.erl
+_checkouts/
