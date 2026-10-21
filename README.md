@@ -57,10 +57,19 @@ A single scenario:
 rebar3 ct --suite=apps/integrity_torture/test/integrity_torture_concurrent_SUITE
 ```
 
-## Tested versions
+## Version floors
 
-The floors are in `rebar.config`; the lock resolves each to a release. Bump
-deliberately, document in `CHANGELOG.md`.
+The constraints are in `rebar.config`; this table is what they say, not a
+list of pins. There is no committed lock (`rebar.lock` is gitignored), and
+what a run resolves depends on the checkout:
+
+- a fresh checkout, which is what CI does, has no lock, so each run resolves
+  the NEWEST release matching each floor from hex - the floor is the
+  contract, the resolution is whatever hex answered that day;
+- a local copy resolves once and writes the `rebar.lock` that run produced;
+  later runs reuse it until the file is removed or `rebar3 upgrade` runs.
+
+Bump a floor deliberately, and document it in `CHANGELOG.md`.
 
 | Package | Constraint in `rebar.config` |
 |---|---|
@@ -71,10 +80,10 @@ deliberately, document in `CHANGELOG.md`.
 | `reckon_gater` | `~> 3.6` |
 | `grpcbox` | 0.17.1 |
 
-CI runs OTP 28.4.3. OTP 29 needs `reckon_db >= 5.12.0` (khepri 0.19); the
-5.11.x line fails to build against khepri 0.17.2 there, and overriding it
-leaves every append failing at runtime, so there is no OTP 29 claim here
-until the floor moves.
+CI runs OTP 28.4.3. Running on OTP 29 needs a khepri that builds there:
+0.17.2 does not (`khepri_import_export.erl`, `warnings_as_errors`), 0.17.11
+does. reckon-db 5.12.0 floors khepri at `~> 0.17.11`, so the floor is what
+moves, not a claim made here.
 
 ## Why mem-evoq for integrity_torture (and not reckon-db)?
 

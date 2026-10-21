@@ -27,16 +27,19 @@ Twenty-eight places - twenty-four in the torture suites and four in
 application source (`adapter_swap_torture.erl:42,88,186` and
 `reckon_e2e_grpc_facade.erl:43`) - used the bare `catch` expression, which
 warns by default on OTP 29 and fails `rebar3 compile` under
-`warnings_as_errors`. Every one is `try ... catch` now, so nothing in
-`erl_opts` silences our own code; `mem_evoq`, `chatterbox` and `grpcbox` keep
-their overrides as dependencies, not ours to change here.
+`warnings_as_errors`. Every one is `try ... catch` now, so no override in
+`erl_opts` suppresses a warning from our own code; `mem_evoq`, `chatterbox`
+and `grpcbox` keep their overrides as dependencies, not ours to change here.
 
-**This does not make the umbrella run on OTP 29.** It does not: reckon-db
-5.11.x compiles against khepri 0.17.2, which fails to build on OTP 29
-(`khepri_import_export.erl`, warnings_as_errors), and with khepri overridden
-the append transaction fun cannot be extracted at runtime, so every append
-errors. OTP 29 needs reckon-db 5.12.0 (khepri 0.19); CI runs OTP 28.4.3 and
-this repo states no OTP 29 claim until the floor moves there.
+**This does not by itself make the umbrella run on OTP 29.** What OTP 29
+needs is a khepri that builds there: 0.17.2 does not
+(`khepri_import_export.erl`, warnings_as_errors), 0.17.11 does - it builds
+under `warnings_as_errors` and runs a transaction fun. Nothing above
+0.17.11 has been measured here.
+reckon-db 5.12.0 floors khepri at `~> 0.17.11`; reckon-db 5.11.13 with a
+0.17.11 override also works (measured: lineage 3 of 3). There is no 0.19
+anywhere in this chain. CI runs OTP 28.4.3, and this repo claims no OTP 29
+support here - the constraint comes from the floor, not from a claim.
 
 `_checkouts/` is gitignored: it is the local-development mechanism the deps'
 own READMEs describe, and it must never be committed.
