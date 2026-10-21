@@ -115,7 +115,8 @@ appended_event_is_findable_by_causation_id(Config) ->
 %% application's own metadata key is stored exactly as the application wrote
 %% it. Which means an application that wants its key indexed writes it as a
 %% binary, and gets found - and one that writes an atom is stored under the
-%% atom and is not. Both halves are the contract, so both are asserted.
+%% atom and is not. Both halves are the contract: the binary half by the
+%% query below, the atom half by reading the stream back.
 an_applications_own_metadata_key_is_stored_as_written(Config) ->
     StoreId = store(Config),
     StreamId = reckon_gater_stream_id:new(<<"lineage">>),
@@ -137,13 +138,17 @@ an_applications_own_metadata_key_is_stored_as_written(Config) ->
                                                       <<"usr-1">>),
     ?assertEqual(<<"thing_happened_v1">>, event_type([Found])),
 
-    %% A value nobody wrote finds nothing, which is also what a query for the
-    %% wrong key spelling looks like: only the three reserved lineage keys are
-    %% translated, so an application key written as an atom is stored under
-    %% the atom and a query for it answers {ok, []}.
-    ?assertMatch({ok, []},
-                 reckon_gater_api:read_by_metadata(StoreId, <<"user_id">>,
-                                                   <<"no-such-value">>)).
+    %% The atom half, from the event itself: the second event carried
+    %% user_id as an atom, the adapter does not rename application keys, and
+    %% so the metadata comes back with the atom and no binary beside it. That
+    %% is why the query above found exactly one event, not two.
+    {ok, Stored} = reckon_gater_api:stream_forward(StoreId, StreamId, 0, 10),
+    ?assertEqual(2, length(Stored)),
+    [#event{metadata = BinaryMetadata}, #event{metadata = AtomMetadata}] = Stored,
+    ?assertEqual(<<"usr-1">>, maps:get(<<"user_id">>, BinaryMetadata)),
+    ?assertEqual(error, maps:find(user_id, BinaryMetadata)),
+    ?assertEqual(<<"usr-1">>, maps:get(user_id, AtomMetadata)),
+    ?assertEqual(error, maps:find(<<"user_id">>, AtomMetadata)).
 
 %% The query is a query: a value nobody wrote finds nothing.
 an_event_with_no_lineage_is_not_found_by_one(Config) ->

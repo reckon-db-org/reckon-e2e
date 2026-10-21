@@ -59,16 +59,22 @@ rebar3 ct --suite=apps/integrity_torture/test/integrity_torture_concurrent_SUITE
 
 ## Tested versions
 
-Pinned in `rebar.config`. Bump deliberately, document in `CHANGELOG.md`.
+The floors are in `rebar.config`; the lock resolves each to a release. Bump
+deliberately, document in `CHANGELOG.md`.
 
-| Package | Version |
+| Package | Constraint in `rebar.config` |
 |---|---|
 | `mem_evoq` | 0.1.2 |
-| `reckon_evoq` | 2.1.1 |
-| `reckon_db` | 2.1.1 |
-| `evoq` | 1.15.0 |
-| `reckon_gater` | 2.1.0 |
+| `reckon_evoq` | `~> 2.9` |
+| `reckon_db` | `~> 5.4` |
+| `evoq` | `~> 1.21` |
+| `reckon_gater` | `~> 3.6` |
 | `grpcbox` | 0.17.1 |
+
+CI runs OTP 28.4.3. OTP 29 needs `reckon_db >= 5.12.0` (khepri 0.19); the
+5.11.x line fails to build against khepri 0.17.2 there, and overriding it
+leaves every append failing at runtime, so there is no OTP 29 claim here
+until the floor moves.
 
 ## Why mem-evoq for integrity_torture (and not reckon-db)?
 

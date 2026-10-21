@@ -21,17 +21,25 @@ an index built for binary ones passed both suites and made every lineage
 query answer nothing. This suite is red against reckon-evoq 2.8.0 and green
 from 2.9.0, which is what the fix is for. See reckon-db-org/evoq#22.
 
-### Fixed: the umbrella did not build on OTP 27+
+### Changed: the deprecated `catch` expression is gone from this repo
 
-`warnings_as_errors` plus the deprecated `catch` expression in twenty-four
-places in the torture suites meant `rebar3 compile` failed before any test ran
-on OTP 29, where the deprecation warns by default (CI on OTP 28.4.3 was still
-green, and the three `try ... catch` sites in application source were never
-the problem). Every one is `try ... catch` now, so there is no suppression
-left in `erl_opts` for our own code. `mem_evoq`, `chatterbox` and `grpcbox` keep theirs as
-overrides: they are dependencies, not ours to change here. `_checkouts/` is
-gitignored: it is the local-development mechanism the deps' own READMEs
-describe, and it must never be committed.
+Twenty-eight places - twenty-four in the torture suites and four in
+application source (`adapter_swap_torture.erl:42,88,186` and
+`reckon_e2e_grpc_facade.erl:43`) - used the bare `catch` expression, which
+warns by default on OTP 29 and fails `rebar3 compile` under
+`warnings_as_errors`. Every one is `try ... catch` now, so nothing in
+`erl_opts` silences our own code; `mem_evoq`, `chatterbox` and `grpcbox` keep
+their overrides as dependencies, not ours to change here.
+
+**This does not make the umbrella run on OTP 29.** It does not: reckon-db
+5.11.x compiles against khepri 0.17.2, which fails to build on OTP 29
+(`khepri_import_export.erl`, warnings_as_errors), and with khepri overridden
+the append transaction fun cannot be extracted at runtime, so every append
+errors. OTP 29 needs reckon-db 5.12.0 (khepri 0.19); CI runs OTP 28.4.3 and
+this repo states no OTP 29 claim until the floor moves there.
+
+`_checkouts/` is gitignored: it is the local-development mechanism the deps'
+own READMEs describe, and it must never be committed.
 
 ## [0.7.0] - 2026-06-23
 
